@@ -137,11 +137,21 @@ Prly stores non-secret configuration in `~/.prly.config.json`. Create or update 
   "email": {
     "to": "team@example.com", // Recipient address (falls back to EMAIL_USER)
   },
-  "openAiPrompt": "...", // Custom system prompt sent to OpenAI
+  "llmOptions": {
+    "outputLanguage": "English", // Language for the AI output, e.g. "Persian", "Spanish"
+    "prompt": "...", // Custom system prompt sent to OpenAI
+  },
 }
 ```
 
 `myModules` is the most important setting. When set, only PRs that touch at least one file inside those directories are included in the summary and email.
+
+### `llmOptions`
+
+| Field            | Description                                                                               | Default         |
+| ---------------- | ----------------------------------------------------------------------------------------- | --------------- |
+| `outputLanguage` | Natural language for the AI-generated summary, e.g. `"English"`, `"Persian"`, `"Spanish"` | `"English"`     |
+| `prompt`         | Full system prompt sent to OpenAI. Omit to use the built-in release-notes prompt.         | Built-in prompt |
 
 ---
 
