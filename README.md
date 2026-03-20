@@ -58,6 +58,14 @@ Prly is a command-line tool that fetches merged PRs from a GitHub repository, op
 
 ## Installation
 
+### From npm (recommended)
+
+```bash
+npm install -g @prly/prly
+```
+
+### From source
+
 ```bash
 # Clone the repository
 git clone https://github.com/mohammadKarimi/Prly.git
