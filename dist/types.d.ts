@@ -48,10 +48,12 @@ export interface PullRequestFile {
 export interface RunOptions {
     since?: string;
     until?: string;
-    /** When `false`, the email step is skipped. */
-    email: boolean;
-    /** When `false`, the OpenAI summarization step is skipped. */
+    /** When `true`, the OpenAI summarization step is run. */
     ai: boolean;
+    /** When `true`, the summary is sent by email. */
+    email: boolean;
+    /** When `true`, the summary is posted to the configured webhook. */
+    webhook: boolean;
     /** Print each PR's changed files while filtering by modules. */
     verbose?: boolean;
 }

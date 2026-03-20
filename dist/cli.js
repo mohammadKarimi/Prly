@@ -42,25 +42,27 @@ exports.buildProgram = buildProgram;
 const dotenv_1 = __importDefault(require("dotenv"));
 dotenv_1.default.config({ override: true });
 const commander_1 = require("commander");
-const summary_1 = require("./summary");
+const summary_1 = require("./commands/summary");
 const config_1 = require("./config");
 const package_json_1 = require("../package.json");
 // ─── Command: run ─────────────────────────────────────────────────────────────
 function registerRunCommand(program) {
     program
         .command("run")
-        .description("Fetch, filter, summarize, and optionally email your PRs")
+        .description("Fetch, filter, and summarize your PRs")
         .option("--since <date>", "Start date (YYYY-MM-DD), default: yesterday")
         .option("--until <date>", "End date   (YYYY-MM-DD), default: today")
-        .option("--no-email", "Skip sending the email")
-        .option("--no-ai", "Skip OpenAI summarization, just list PRs")
+        .option("--ai", "Generate an AI summary via OpenAI")
+        .option("--email", "Send the summary by email")
+        .option("--webhook", "Post the summary to the configured webhook")
         .option("--verbose", "Show every PR's changed files during module filtering")
         .action(async (opts) => {
         await (0, summary_1.runSummary)({
             since: opts.since,
             until: opts.until,
-            email: opts.email !== false,
-            ai: opts.ai !== false,
+            ai: !!opts.ai,
+            email: !!opts.email,
+            webhook: !!opts.webhook,
             verbose: !!opts.verbose,
         });
     });
@@ -130,7 +132,7 @@ function registerConfigCommands(program) {
         .command("test")
         .description("Test GitHub token and repo access")
         .action(async () => {
-        const { testConnection } = await Promise.resolve().then(() => __importStar(require("./github")));
+        const { testConnection } = await Promise.resolve().then(() => __importStar(require("./providers/github")));
         const cfg = (0, config_1.loadConfig)();
         await testConnection(cfg.github.owner, cfg.github.repo);
     });

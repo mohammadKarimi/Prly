@@ -50,7 +50,7 @@ Prly is a command-line tool that fetches merged PRs from a GitHub repository, op
 | npm              | ≥ 9                                                                          |
 | GitHub token     | Personal access token **or** [GitHub CLI](https://cli.github.com/) logged in |
 | OpenAI API key   | Required only for AI summarization (`--no-ai` skips it)                      |
-| SMTP credentials | Required only for email (`--no-email` skips it)                              |
+| SMTP credentials | Required only for email (`--email`)                                          |
 
 ---
 
@@ -95,16 +95,16 @@ prly run
 
 All secrets are provided via environment variables. Prly loads a `.env` file from the **current working directory** automatically (via `dotenv`), or you can export them in your shell profile.
 
-| Variable              | Required                  | Description                                                                                          |
-| --------------------- | ------------------------- | ---------------------------------------------------------------------------------------------------- |
-| `GITHUB_TOKEN`        | Optional†                 | GitHub personal access token with `repo` read scope. Falls back to `gh auth token` if not set.       |
-| `OPENAI_API_KEY`      | Yes (unless `--no-ai`)    | OpenAI API key for generating summaries.                                                             |
-| `EMAIL_USER`          | Yes (unless `--no-email`) | SMTP username and the default sender/recipient address.                                              |
-| `EMAIL_PASS`          | Yes (unless `--no-email`) | SMTP password or app password.                                                                       |
-| `EMAIL_HOST`          | No                        | SMTP host (e.g. `smtp.gmail.com`). Required when sending email.                                      |
-| `EMAIL_PORT`          | No                        | SMTP port. Defaults to `587`.                                                                        |
-| `EMAIL_SECURE`        | No                        | Set to `true` to use TLS (port 465). Defaults to `false`.                                            |
-| `GITHUB_API_BASE_URL` | No                        | Override the GitHub API base URL (e.g. for GitHub Enterprise). Defaults to `https://api.github.com`. |
+| Variable              | Required               | Description                                                                                          |
+| --------------------- | ---------------------- | ---------------------------------------------------------------------------------------------------- |
+| `GITHUB_TOKEN`        | Optional†              | GitHub personal access token with `repo` read scope. Falls back to `gh auth token` if not set.       |
+| `OPENAI_API_KEY`      | Yes (unless `--no-ai`) | OpenAI API key for generating summaries.                                                             |
+| `EMAIL_USER`          | Yes (with `--email`)   | SMTP username and the default sender/recipient address.                                              |
+| `EMAIL_PASS`          | Yes (with `--email`)   | SMTP password or app password.                                                                       |
+| `EMAIL_HOST`          | No                     | SMTP host (e.g. `smtp.gmail.com`). Required when sending email.                                      |
+| `EMAIL_PORT`          | No                     | SMTP port. Defaults to `587`.                                                                        |
+| `EMAIL_SECURE`        | No                     | Set to `true` to use TLS (port 465). Defaults to `false`.                                            |
+| `GITHUB_API_BASE_URL` | No                     | Override the GitHub API base URL (e.g. for GitHub Enterprise). Defaults to `https://api.github.com`. |
 
 † If `GITHUB_TOKEN` is not set, Prly will call `gh auth token` automatically. Run `gh auth login` once and you never need to manage a token manually.
 
@@ -161,19 +161,20 @@ Prly stores non-secret configuration in `~/.prly.config.json`. Create or update 
 
 ### `run`
 
-Fetch, filter, summarize, and optionally email your PRs.
+Fetch, filter, and summarize your PRs. Outputs and delivery channels are **opt-in** — nothing is sent unless you explicitly ask.
 
 ```
 prly run [options]
 ```
 
-| Option           | Description                                              | Default       |
-| ---------------- | -------------------------------------------------------- | ------------- |
-| `--since <date>` | Start of the date range (`YYYY-MM-DD`)                   | Yesterday     |
-| `--until <date>` | End of the date range (`YYYY-MM-DD`)                     | Today         |
-| `--no-email`     | Skip sending the email                                   | Email is sent |
-| `--no-ai`        | Skip OpenAI summarization, just print the PR list        | AI is used    |
-| `--verbose`      | Print each PR's changed files while filtering by modules | Off           |
+| Option           | Description                                              | Default   |
+| ---------------- | -------------------------------------------------------- | --------- |
+| `--since <date>` | Start of the date range (`YYYY-MM-DD`)                   | Yesterday |
+| `--until <date>` | End of the date range (`YYYY-MM-DD`)                     | Today     |
+| `--ai`           | Generate an AI summary via OpenAI                        | Off       |
+| `--email`        | Send the summary by email                                | Off       |
+| `--webhook`      | Post the summary to the configured webhook               | Off       |
+| `--verbose`      | Print each PR's changed files while filtering by modules | Off       |
 
 ---
 
@@ -270,22 +271,25 @@ prly config test
 ## Examples
 
 ```bash
-# Summarize yesterday's PRs and email the result
+# List yesterday's PRs (no AI, no delivery)
 prly run
 
-# Summarize a specific date range
-prly run --since 2026-03-01 --until 2026-03-07
+# Summarize with AI only — no email, no webhook
+prly run --ai
 
-# Summarize this week but skip emailing
-prly run --since 2026-03-16 --no-email
+# Summarize a specific date range and email the result
+prly run --since 2026-03-01 --until 2026-03-07 --ai --email
 
-# Print the PR list only — no AI, no email
-prly run --no-ai --no-email
+# Summarize this week and post to webhook
+prly run --since 2026-03-16 --ai --webhook
+
+# Full delivery: AI summary + email + webhook
+prly run --ai --email --webhook
 
 # See which files each PR touched while filtering
-prly run --verbose --no-email
+prly run --verbose
 
-# Quick check of what merged yesterday — no AI, no email
+# Quick check of what merged yesterday (no outputs)
 prly list
 
 # See every merged PR (ignore module filter), useful when setting up modules

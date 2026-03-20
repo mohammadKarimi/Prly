@@ -20,21 +20,23 @@ import { version } from "../package.json";
 function registerRunCommand(program: Command): void {
   program
     .command("run")
-    .description("Fetch, filter, summarize, and optionally email your PRs")
+    .description("Fetch, filter, and summarize your PRs")
     .option("--since <date>", "Start date (YYYY-MM-DD), default: yesterday")
     .option("--until <date>", "End date   (YYYY-MM-DD), default: today")
-    .option("--no-email", "Skip sending the email")
-    .option("--no-ai", "Skip OpenAI summarization, just list PRs")
+    .option("--ai",      "Generate an AI summary via OpenAI")
+    .option("--email",   "Send the summary by email")
+    .option("--webhook", "Post the summary to the configured webhook")
     .option(
       "--verbose",
       "Show every PR's changed files during module filtering",
     )
     .action(async (opts) => {
       await runSummary({
-        since: opts.since,
-        until: opts.until,
-        email: opts.email !== false,
-        ai: opts.ai !== false,
+        since:   opts.since,
+        until:   opts.until,
+        ai:      !!opts.ai,
+        email:   !!opts.email,
+        webhook: !!opts.webhook,
         verbose: !!opts.verbose,
       });
     });

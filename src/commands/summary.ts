@@ -2,6 +2,7 @@ import { loadConfig, isMyPR } from "../config";
 import { fetchMergedPRs, fetchPRFiles } from "../providers/github";
 import { summarizePRs } from "../providers/openai";
 import { sendEmail } from "../providers/email";
+import { sendToWebhook } from "../providers/webhook";
 import { RunOptions, PullRequest, DateRange } from "../types";
 
 // ─── Date helpers ─────────────────────────────────────────────────────────────
@@ -144,6 +145,11 @@ export async function runSummary(options: RunOptions): Promise<void> {
       `PR Summary for ${dateLabel}\n\n${summary}`,
       config.email?.to,
     );
+  }
+
+  if (options.webhook) {
+    console.log("🔔 Sending webhook notification...");
+    await sendToWebhook(`PR Summary for ${dateLabel}\n\n${summary}`);
   }
 
   console.log("\n🎉 Done!");
