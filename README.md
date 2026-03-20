@@ -2,6 +2,8 @@
 
 > **Summarize your daily merged pull requests with AI — for any GitHub repo.**
 
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/mohammadKarimi/Prly)
+
 Prly is a command-line tool that fetches merged PRs from a GitHub repository, optionally filters them to the modules you own, generates an AI-powered summary using OpenAI, and can email the result to you — all in a single command.
 
 ---
