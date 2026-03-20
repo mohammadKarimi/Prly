@@ -1,5 +1,5 @@
 {
-  "name": "prly",
+  "name": "@mohammadkarimi/prly",
   "version": "1.0.0",
   "description": "Summarize your daily merged PRs with AI — for any GitHub repo",
   "type": "commonjs",
