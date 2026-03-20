@@ -6,12 +6,32 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.summarizePRs = summarizePRs;
 const node_fetch_1 = __importDefault(require("node-fetch"));
 const config_1 = require("./config");
-async function summarizePRs(prs) {
-    const apiKey = process.env.OPENAI_API_KEY;
-    if (!apiKey)
-        throw new Error("OPENAI_API_KEY environment variable is not set.");
-    const config = (0, config_1.loadConfig)();
-    const systemPrompt = config.openAiPrompt ?? config_1.DEFAULT_OPENAI_PROMPT;
+// ─── Constants ────────────────────────────────────────────────────────────────
+const OPENAI_CHAT_URL = "https://api.openai.com/v1/chat/completions";
+const OPENAI_MODEL = "gpt-4o-mini";
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+/**
+ * Parses one `data: ...` line from an OpenAI SSE stream.
+ * Returns the text token, or `null` when the line should be skipped.
+ */
+function parseStreamLine(line) {
+    if (!line.startsWith("data:"))
+        return null;
+    const data = line.slice(5).trim();
+    if (data === "[DONE]")
+        return null;
+    let chunk;
+    try {
+        chunk = JSON.parse(data);
+    }
+    catch {
+        return null;
+    }
+    if (chunk.error)
+        throw new Error(`OpenAI error: ${chunk.error.message}`);
+    return chunk.choices?.[0]?.delta?.content ?? null;
+}
+function buildUserMessage(prs) {
     const input = prs.map((pr) => ({
         number: pr.number,
         title: pr.title,
@@ -20,55 +40,47 @@ async function summarizePRs(prs) {
         url: pr.html_url,
         changedFiles: pr.changedFiles ?? [],
     }));
+    return `Summarize these merged pull requests:\n\n${JSON.stringify(input, null, 2)}`;
+}
+// ─── Public API ───────────────────────────────────────────────────────────────
+/**
+ * Sends `prs` to OpenAI and streams the resulting summary to stdout.
+ * Returns the full summary text once the stream is complete.
+ *
+ * Requires the `OPENAI_API_KEY` environment variable.
+ */
+async function summarizePRs(prs) {
+    const apiKey = process.env.OPENAI_API_KEY;
+    if (!apiKey) {
+        throw new Error("OPENAI_API_KEY environment variable is not set.");
+    }
+    const config = (0, config_1.loadConfig)();
+    const systemPrompt = config.openAiPrompt ?? config_1.DEFAULT_OPENAI_PROMPT;
     const messages = [
-        {
-            role: "system",
-            content: systemPrompt,
-        },
-        {
-            role: "user",
-            content: `Summarize these merged pull requests:\n\n${JSON.stringify(input, null, 2)}`,
-        },
+        { role: "system", content: systemPrompt },
+        { role: "user", content: buildUserMessage(prs) },
     ];
-    const res = await (0, node_fetch_1.default)("https://api.openai.com/v1/chat/completions", {
+    const res = await (0, node_fetch_1.default)(OPENAI_CHAT_URL, {
         method: "POST",
         headers: {
             Authorization: `Bearer ${apiKey}`,
             "Content-Type": "application/json",
         },
         body: JSON.stringify({
-            model: "gpt-4o-mini",
+            model: OPENAI_MODEL,
             messages,
             temperature: 0.3,
             stream: true,
         }),
     });
     if (!res.ok) {
-        const text = await res.text();
-        throw new Error(`OpenAI API error ${res.status}: ${text}`);
+        throw new Error(`OpenAI API error ${res.status}: ${await res.text()}`);
     }
-    // Stream the response, printing each token as it arrives
     process.stdout.write("\n");
     let fullText = "";
-    for await (const line of res.body) {
-        const raw = line.toString("utf-8");
-        for (const part of raw.split("\n")) {
-            const trimmed = part.trim();
-            if (!trimmed.startsWith("data:"))
-                continue;
-            const data = trimmed.slice(5).trim();
-            if (data === "[DONE]")
-                break;
-            let chunk;
-            try {
-                chunk = JSON.parse(data);
-            }
-            catch {
-                continue;
-            }
-            if (chunk.error)
-                throw new Error(`OpenAI error: ${chunk.error.message}`);
-            const token = chunk.choices?.[0]?.delta?.content ?? "";
+    for await (const chunk of res.body) {
+        for (const line of chunk.toString("utf-8").split("\n")) {
+            const token = parseStreamLine(line.trim());
             if (token) {
                 process.stdout.write(token);
                 fullText += token;

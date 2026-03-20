@@ -3,6 +3,8 @@ import { execSync } from "child_process";
 import { PullRequest, PullRequestFile } from "./types";
 import { configPath } from "./config";
 
+// ─── API helpers ──────────────────────────────────────────────────────────────
+
 function apiBase(): string {
   return (process.env.GITHUB_API_BASE_URL ?? "https://api.github.com").replace(
     /\/$/,
@@ -10,16 +12,20 @@ function apiBase(): string {
   );
 }
 
-function resolveToken(): string {
-  // 1. Explicit env var always wins
-  if (process.env.GITHUB_TOKEN) return process.env.GITHUB_TOKEN;
+type TokenSource = "GITHUB_TOKEN env var" | "GitHub CLI (gh auth token)";
 
-  // 2. Fall back to GitHub CLI token (OAuth app — bypasses org PAT restrictions)
+function resolveToken(): { token: string; source: TokenSource } {
+  // Explicit env var always wins
+  if (process.env.GITHUB_TOKEN) {
+    return { token: process.env.GITHUB_TOKEN, source: "GITHUB_TOKEN env var" };
+  }
+
+  // Fall back to GitHub CLI token (OAuth app — bypasses org PAT restrictions)
   try {
     const token = execSync("gh auth token", { stdio: ["pipe", "pipe", "pipe"] })
       .toString()
       .trim();
-    if (token) return token;
+    if (token) return { token, source: "GitHub CLI (gh auth token)" };
   } catch {
     // gh not installed or not authenticated — fall through to error
   }
@@ -31,11 +37,18 @@ function resolveToken(): string {
 
 function githubHeaders(): Record<string, string> {
   return {
-    Authorization: `Bearer ${resolveToken()}`,
+    Authorization: `Bearer ${resolveToken().token}`,
     Accept: "application/vnd.github+json",
   };
 }
 
+// ─── Data fetching ────────────────────────────────────────────────────────────
+
+/**
+ * Fetches all merged pull requests for `owner/repo` within the given date range.
+ * Paginates automatically until no pages remain or the oldest PR on a page
+ * predates `since`.
+ */
 export async function fetchMergedPRs(
   owner: string,
   repo: string,
@@ -50,12 +63,10 @@ export async function fetchMergedPRs(
     const res = await fetch(url, { headers: githubHeaders() });
 
     if (!res.ok) {
-      const text = await res.text();
-      throw new Error(`GitHub API error ${res.status}: ${text}`);
+      throw new Error(`GitHub API error ${res.status}: ${await res.text()}`);
     }
 
     const data = (await res.json()) as PullRequest[];
-
     if (!Array.isArray(data) || data.length === 0) break;
 
     const merged = data.filter((pr) => {
@@ -66,7 +77,7 @@ export async function fetchMergedPRs(
 
     allPRs.push(...merged);
 
-    // If the oldest PR on this page was merged before `since`, no need to fetch more
+    // Stop early if the oldest PR on this page predates our window
     const oldest = data[data.length - 1];
     if (oldest.merged_at && new Date(oldest.merged_at) < since) break;
 
@@ -76,6 +87,7 @@ export async function fetchMergedPRs(
   return allPRs;
 }
 
+/** Returns the list of file paths changed in pull request `prNumber`. */
 export async function fetchPRFiles(
   owner: string,
   repo: string,
@@ -85,9 +97,8 @@ export async function fetchPRFiles(
   const res = await fetch(url, { headers: githubHeaders() });
 
   if (!res.ok) {
-    const text = await res.text();
     throw new Error(
-      `GitHub API error ${res.status} for PR #${prNumber}: ${text}`,
+      `GitHub API error ${res.status} for PR #${prNumber}: ${await res.text()}`,
     );
   }
 
@@ -95,34 +106,46 @@ export async function fetchPRFiles(
   return files.map((f) => f.filename);
 }
 
+// ─── Diagnostics ──────────────────────────────────────────────────────────────
+
+/**
+ * Runs three diagnostic checks and exits with code 1 on the first failure:
+ * 1. Token validity (`GET /user`)
+ * 2. OAuth scopes
+ * 3. Repository accessibility (`GET /repos/:owner/:repo`)
+ */
 export async function testConnection(
   owner: string,
   repo: string,
 ): Promise<void> {
   const base = apiBase();
-  const tokenSource = "GitHub CLI (gh auth token)";
-  const headers = githubHeaders();
+  const { token, source: tokenSource } = resolveToken();
+  const headers: Record<string, string> = {
+    Authorization: `Bearer ${token}`,
+    Accept: "application/vnd.github+json",
+  };
 
   console.log(`\n🔌 API base   : ${base}`);
   console.log(`🔑 Token from : ${tokenSource}`);
 
-  // Step 1: verify token by fetching the authenticated user
+  // 1. Verify token
   console.log("\n1️⃣  Checking token (GET /user)...");
   const userRes = await fetch(`${base}/user`, { headers });
   if (!userRes.ok) {
-    const text = await userRes.text();
     console.error(
-      `   ❌ Token invalid or wrong API URL — ${userRes.status}: ${text}`,
+      `   ❌ Token invalid or wrong API URL — ${userRes.status}: ${await userRes.text()}`,
     );
     console.error(
       "   👉 Check GITHUB_TOKEN and GITHUB_API_BASE_URL in your .env",
     );
     process.exit(1);
   }
-  const user = (await userRes.json()) as { login: string; name: string };
-  console.log(`   ✅ Authenticated as @${user.login} (${user.name ?? ""})`);
+  const user = (await userRes.json()) as { login: string; name?: string };
+  console.log(
+    `   ✅ Authenticated as @${user.login}${user.name ? ` (${user.name})` : ""}`,
+  );
 
-  // Step 2: check token scopes
+  // 2. Check scopes
   const scopes = userRes.headers.get("x-oauth-scopes");
   if (scopes === null) {
     console.log(
@@ -132,7 +155,7 @@ export async function testConnection(
       "   ℹ️  Fine-grained PATs need all of the following for private org repos:",
     );
     console.log(
-      "      1. Resource owner set to the org (WiseTechGlobal), not your personal account",
+      "      1. Resource owner set to the org, not your personal account",
     );
     console.log(
       "      2. The org must approve the token (org Settings → Personal access tokens)",
@@ -152,12 +175,13 @@ export async function testConnection(
     console.log("   ✅ 'repo' scope present");
   }
 
-  // Step 3: check repo access
+  // 3. Check repo access
   console.log(`\n3️⃣  Checking repo access (GET /repos/${owner}/${repo})...`);
   const repoRes = await fetch(`${base}/repos/${owner}/${repo}`, { headers });
   if (!repoRes.ok) {
-    const text = await repoRes.text();
-    console.error(`   ❌ Cannot access repo — ${repoRes.status}: ${text}`);
+    console.error(
+      `   ❌ Cannot access repo — ${repoRes.status}: ${await repoRes.text()}`,
+    );
     if (repoRes.status === 404) {
       console.error("   👉 Possible causes:");
       console.error(

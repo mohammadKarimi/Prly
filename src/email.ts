@@ -1,5 +1,36 @@
 import nodemailer from "nodemailer";
 
+// ─── Constants ────────────────────────────────────────────────────────────────
+
+const EMAIL_SUBJECT = "📦 Prly Summary";
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+function buildHtml(summary: string): string {
+  return (
+    `<h2>🚀 Prly Summary</h2>` +
+    `<pre style="font-family: monospace; white-space: pre-wrap;">${escapeHtml(summary)}</pre>`
+  );
+}
+
+// ─── Public API ───────────────────────────────────────────────────────────────
+
+/**
+ * Sends `summary` as an HTML email via the configured SMTP transporter.
+ *
+ * Required env vars: `EMAIL_USER`, `EMAIL_PASS`, `EMAIL_HOST`.
+ * Optional env vars: `EMAIL_PORT` (default `587`), `EMAIL_SECURE` (default `false`).
+ *
+ * @param summary            Plain-text summary to send.
+ * @param recipientOverride  Override the recipient; defaults to `EMAIL_USER`.
+ */
 export async function sendEmail(
   summary: string,
   recipientOverride?: string,
@@ -13,38 +44,24 @@ export async function sendEmail(
     );
   }
 
-  const to = recipientOverride || user;
-
-  const host = process.env.EMAIL_HOST;
+  const to = recipientOverride ?? user;
   const port = parseInt(process.env.EMAIL_PORT ?? "587", 10);
   const secure = process.env.EMAIL_SECURE === "true";
 
   const transporter = nodemailer.createTransport({
-    host,
+    host: process.env.EMAIL_HOST,
     port,
     secure,
     auth: { user, pass },
   });
 
-  const html = `
-    <h2>🚀 Prly Summary</h2>
-    <pre style="font-family: monospace; white-space: pre-wrap;">${escapeHtml(summary)}</pre>
-  `;
-
   const info = await transporter.sendMail({
     from: `"Prly Bot" <${user}>`,
     to,
-    subject: "📦 Prly Summary",
+    subject: EMAIL_SUBJECT,
     text: summary,
-    html,
+    html: buildHtml(summary),
   });
 
   console.log(`✅ Email sent to ${to} (${info.messageId})`);
-}
-
-function escapeHtml(text: string): string {
-  return text
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
 }

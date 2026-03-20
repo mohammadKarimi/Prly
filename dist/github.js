@@ -9,20 +9,22 @@ exports.testConnection = testConnection;
 const node_fetch_1 = __importDefault(require("node-fetch"));
 const child_process_1 = require("child_process");
 const config_1 = require("./config");
+// ─── API helpers ──────────────────────────────────────────────────────────────
 function apiBase() {
     return (process.env.GITHUB_API_BASE_URL ?? "https://api.github.com").replace(/\/$/, "");
 }
 function resolveToken() {
-    // 1. Explicit env var always wins
-    if (process.env.GITHUB_TOKEN)
-        return process.env.GITHUB_TOKEN;
-    // 2. Fall back to GitHub CLI token (OAuth app — bypasses org PAT restrictions)
+    // Explicit env var always wins
+    if (process.env.GITHUB_TOKEN) {
+        return { token: process.env.GITHUB_TOKEN, source: "GITHUB_TOKEN env var" };
+    }
+    // Fall back to GitHub CLI token (OAuth app — bypasses org PAT restrictions)
     try {
         const token = (0, child_process_1.execSync)("gh auth token", { stdio: ["pipe", "pipe", "pipe"] })
             .toString()
             .trim();
         if (token)
-            return token;
+            return { token, source: "GitHub CLI (gh auth token)" };
     }
     catch {
         // gh not installed or not authenticated — fall through to error
@@ -31,10 +33,16 @@ function resolveToken() {
 }
 function githubHeaders() {
     return {
-        Authorization: `Bearer ${resolveToken()}`,
+        Authorization: `Bearer ${resolveToken().token}`,
         Accept: "application/vnd.github+json",
     };
 }
+// ─── Data fetching ────────────────────────────────────────────────────────────
+/**
+ * Fetches all merged pull requests for `owner/repo` within the given date range.
+ * Paginates automatically until no pages remain or the oldest PR on a page
+ * predates `since`.
+ */
 async function fetchMergedPRs(owner, repo, since, until) {
     const allPRs = [];
     let page = 1;
@@ -42,8 +50,7 @@ async function fetchMergedPRs(owner, repo, since, until) {
         const url = `${apiBase()}/repos/${owner}/${repo}/pulls?state=closed&per_page=100&page=${page}`;
         const res = await (0, node_fetch_1.default)(url, { headers: githubHeaders() });
         if (!res.ok) {
-            const text = await res.text();
-            throw new Error(`GitHub API error ${res.status}: ${text}`);
+            throw new Error(`GitHub API error ${res.status}: ${await res.text()}`);
         }
         const data = (await res.json());
         if (!Array.isArray(data) || data.length === 0)
@@ -55,7 +62,7 @@ async function fetchMergedPRs(owner, repo, since, until) {
             return mergedAt >= since && mergedAt <= until;
         });
         allPRs.push(...merged);
-        // If the oldest PR on this page was merged before `since`, no need to fetch more
+        // Stop early if the oldest PR on this page predates our window
         const oldest = data[data.length - 1];
         if (oldest.merged_at && new Date(oldest.merged_at) < since)
             break;
@@ -63,39 +70,48 @@ async function fetchMergedPRs(owner, repo, since, until) {
     }
     return allPRs;
 }
+/** Returns the list of file paths changed in pull request `prNumber`. */
 async function fetchPRFiles(owner, repo, prNumber) {
     const url = `${apiBase()}/repos/${owner}/${repo}/pulls/${prNumber}/files?per_page=100`;
     const res = await (0, node_fetch_1.default)(url, { headers: githubHeaders() });
     if (!res.ok) {
-        const text = await res.text();
-        throw new Error(`GitHub API error ${res.status} for PR #${prNumber}: ${text}`);
+        throw new Error(`GitHub API error ${res.status} for PR #${prNumber}: ${await res.text()}`);
     }
     const files = (await res.json());
     return files.map((f) => f.filename);
 }
+// ─── Diagnostics ──────────────────────────────────────────────────────────────
+/**
+ * Runs three diagnostic checks and exits with code 1 on the first failure:
+ * 1. Token validity (`GET /user`)
+ * 2. OAuth scopes
+ * 3. Repository accessibility (`GET /repos/:owner/:repo`)
+ */
 async function testConnection(owner, repo) {
     const base = apiBase();
-    const tokenSource = "GitHub CLI (gh auth token)";
-    const headers = githubHeaders();
+    const { token, source: tokenSource } = resolveToken();
+    const headers = {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/vnd.github+json",
+    };
     console.log(`\n🔌 API base   : ${base}`);
     console.log(`🔑 Token from : ${tokenSource}`);
-    // Step 1: verify token by fetching the authenticated user
+    // 1. Verify token
     console.log("\n1️⃣  Checking token (GET /user)...");
     const userRes = await (0, node_fetch_1.default)(`${base}/user`, { headers });
     if (!userRes.ok) {
-        const text = await userRes.text();
-        console.error(`   ❌ Token invalid or wrong API URL — ${userRes.status}: ${text}`);
+        console.error(`   ❌ Token invalid or wrong API URL — ${userRes.status}: ${await userRes.text()}`);
         console.error("   👉 Check GITHUB_TOKEN and GITHUB_API_BASE_URL in your .env");
         process.exit(1);
     }
     const user = (await userRes.json());
-    console.log(`   ✅ Authenticated as @${user.login} (${user.name ?? ""})`);
-    // Step 2: check token scopes
+    console.log(`   ✅ Authenticated as @${user.login}${user.name ? ` (${user.name})` : ""}`);
+    // 2. Check scopes
     const scopes = userRes.headers.get("x-oauth-scopes");
     if (scopes === null) {
         console.log("\n2️⃣  Token type: fine-grained PAT (no x-oauth-scopes header)");
         console.log("   ℹ️  Fine-grained PATs need all of the following for private org repos:");
-        console.log("      1. Resource owner set to the org (WiseTechGlobal), not your personal account");
+        console.log("      1. Resource owner set to the org, not your personal account");
         console.log("      2. The org must approve the token (org Settings → Personal access tokens)");
         console.log("      3. Token permission: 'Pull requests: Read-only'");
         console.log("   👉 Easiest fix: use a classic PAT (ghp_...) with 'repo' scope instead.");
@@ -109,12 +125,11 @@ async function testConnection(owner, repo) {
         console.log(`\n2️⃣  Token scopes: ${scopes}`);
         console.log("   ✅ 'repo' scope present");
     }
-    // Step 3: check repo access
+    // 3. Check repo access
     console.log(`\n3️⃣  Checking repo access (GET /repos/${owner}/${repo})...`);
     const repoRes = await (0, node_fetch_1.default)(`${base}/repos/${owner}/${repo}`, { headers });
     if (!repoRes.ok) {
-        const text = await repoRes.text();
-        console.error(`   ❌ Cannot access repo — ${repoRes.status}: ${text}`);
+        console.error(`   ❌ Cannot access repo — ${repoRes.status}: ${await repoRes.text()}`);
         if (repoRes.status === 404) {
             console.error("   👉 Possible causes:");
             console.error("      • The repo is private and your token lacks 'repo' scope");
