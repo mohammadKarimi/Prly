@@ -1,7 +1,7 @@
 import fetch from "node-fetch";
 import { execSync } from "child_process";
-import { PullRequest, PullRequestFile } from "./types";
-import { configPath } from "./config";
+import { PullRequest, PullRequestFile } from "../types";
+import { configPath } from "../config";
 
 // ─── API helpers ──────────────────────────────────────────────────────────────
 

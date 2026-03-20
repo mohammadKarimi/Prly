@@ -1,6 +1,6 @@
 import fetch from "node-fetch";
-import { PullRequest } from "./types";
-import { loadConfig, DEFAULT_OPENAI_PROMPT } from "./config";
+import { PullRequest } from "../types";
+import { loadConfig, DEFAULT_OPENAI_PROMPT } from "../config";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 

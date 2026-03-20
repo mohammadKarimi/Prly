@@ -1,8 +1,8 @@
-import { loadConfig, isMyPR } from "./config";
-import { fetchMergedPRs, fetchPRFiles } from "./github";
-import { summarizePRs } from "./openai";
-import { sendEmail } from "./email";
-import { RunOptions, PullRequest, DateRange } from "./types";
+import { loadConfig, isMyPR } from "../config";
+import { fetchMergedPRs, fetchPRFiles } from "../providers/github";
+import { summarizePRs } from "../providers/openai";
+import { sendEmail } from "../providers/email";
+import { RunOptions, PullRequest, DateRange } from "../types";
 
 // ─── Date helpers ─────────────────────────────────────────────────────────────
 

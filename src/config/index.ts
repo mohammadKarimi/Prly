@@ -2,7 +2,7 @@ import fs from "fs";
 import path from "path";
 import os from "os";
 import readline from "readline/promises";
-import { Config } from "./types";
+import { Config } from "../types";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 

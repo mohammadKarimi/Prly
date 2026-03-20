@@ -5,7 +5,7 @@ import dotenv from "dotenv";
 dotenv.config({ override: true });
 
 import { Command } from "commander";
-import { runSummary, listPRs, listAllPRs } from "./summary";
+import { runSummary, listPRs, listAllPRs } from "./commands/summary";
 import {
   initConfig,
   loadConfig,
@@ -121,7 +121,7 @@ function registerConfigCommands(program: Command): void {
     .command("test")
     .description("Test GitHub token and repo access")
     .action(async () => {
-      const { testConnection } = await import("./github");
+      const { testConnection } = await import("./providers/github");
       const cfg = loadConfig();
       await testConnection(cfg.github.owner, cfg.github.repo);
     });
