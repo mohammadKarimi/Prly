@@ -100,7 +100,7 @@ All secrets are provided via environment variables. Prly loads a `.env` file fro
 | Variable              | Required               | Description                                                                                                 |
 | --------------------- | ---------------------- | ----------------------------------------------------------------------------------------------------------- |
 | `GITHUB_TOKEN`        | Optional†              | GitHub personal access token with `repo` read scope. Falls back to `gh auth token` if not set.              |
-| `OPENAI_API_KEY`      | Yes (unless `--no-ai`) | OpenAI API key for generating summaries.                                                                    |
+| `OPENAI_API_KEY`      | Yes (`--ai`)           | OpenAI API key for generating summaries.                                                                    |
 | `EMAIL_USER`          | Yes (with `--email`)   | SMTP username and the default sender/recipient address.                                                     |
 | `EMAIL_PASS`          | Yes (with `--email`)   | SMTP password or app password.                                                                              |
 | `EMAIL_HOST`          | No                     | SMTP host (e.g. `smtp.gmail.com`). Required when sending email.                                             |
