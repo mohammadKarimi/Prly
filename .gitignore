@@ -487,6 +487,5 @@ venv/
 /modules/backend/src/Riter.BackEnd/appsettings.Development.json
 /modules/extension/dist
 
-package-lock.json
 modules/panel/bun.lock
 /modules/backend/src/Riter.McpServer/appsettings.Development.json
