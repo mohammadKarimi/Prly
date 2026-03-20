@@ -10,8 +10,16 @@ export interface Config {
     /** Recipient address; falls back to the `EMAIL_USER` env var when omitted. */
     to?: string;
   };
-  /** System prompt sent to OpenAI. Edit this to customise the summary style. */
-  openAiPrompt?: string;
+  /** OpenAI / LLM options. */
+  llmOptions?: {
+    /** System prompt sent to OpenAI. Edit this to customise the summary style. */
+    prompt?: string;
+    /**
+     * Language for the AI-generated summary, e.g. `"English"`, `"Persian"`, `"Spanish"`.
+     * Defaults to `"English"` when omitted.
+     */
+    outputLanguage?: string;
+  };
 }
 
 /** A pull request as returned by the GitHub REST API. */

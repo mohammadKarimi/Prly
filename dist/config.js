@@ -144,7 +144,10 @@ async function initConfig() {
         github: { owner, repo },
         myModules: modules,
         ...(emailTo ? { email: { to: emailTo } } : {}),
-        openAiPrompt: existing?.openAiPrompt ?? exports.DEFAULT_OPENAI_PROMPT,
+        llmOptions: {
+            prompt: existing?.llmOptions?.prompt ?? exports.DEFAULT_OPENAI_PROMPT,
+            outputLanguage: existing?.llmOptions?.outputLanguage ?? "English",
+        },
     };
     saveConfig(config);
     return config;

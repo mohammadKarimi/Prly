@@ -71,7 +71,9 @@ export async function summarizePRs(prs: PullRequest[]): Promise<string> {
   }
 
   const config = loadConfig();
-  const systemPrompt = config.openAiPrompt ?? DEFAULT_OPENAI_PROMPT;
+  const language = config.llmOptions?.outputLanguage ?? "English";
+  const basePrompt = config.llmOptions?.prompt ?? DEFAULT_OPENAI_PROMPT;
+  const systemPrompt = `${basePrompt}\n\nIMPORTANT: Write the entire output in ${language}.`;
 
   const messages: OpenAIMessage[] = [
     { role: "system", content: systemPrompt },

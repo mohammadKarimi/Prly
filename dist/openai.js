@@ -55,7 +55,9 @@ async function summarizePRs(prs) {
         throw new Error("OPENAI_API_KEY environment variable is not set.");
     }
     const config = (0, config_1.loadConfig)();
-    const systemPrompt = config.openAiPrompt ?? config_1.DEFAULT_OPENAI_PROMPT;
+    const language = config.llmOptions?.outputLanguage ?? "English";
+    const basePrompt = config.llmOptions?.prompt ?? config_1.DEFAULT_OPENAI_PROMPT;
+    const systemPrompt = `${basePrompt}\n\nIMPORTANT: Write the entire output in ${language}.`;
     const messages = [
         { role: "system", content: systemPrompt },
         { role: "user", content: buildUserMessage(prs) },
