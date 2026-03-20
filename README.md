@@ -35,7 +35,8 @@ Prly is a command-line tool that fetches merged PRs from a GitHub repository, op
 
 - Fetches all merged PRs from any GitHub repository within a configurable date range
 - Filters PRs to only those that touch directories **you own** (your modules)
-- Generates structured release notes via OpenAI, grouped into Features / Improvements / Bug Fixes
+- Generates a structured, section-by-section AI analysis (Problem / Change / Result) via OpenAI
+- Posts the result to a Microsoft Teams channel as a native **Adaptive Card** (version 1.4) via an incoming webhook
 - Sends the summary as an HTML email via any SMTP server
 - Works with a personal access token **or** the GitHub CLI (`gh auth login`) — no token setup required if you already use the CLI
 - Config stored in a single JSON file in your home directory — nothing committed to the repo
@@ -49,8 +50,9 @@ Prly is a command-line tool that fetches merged PRs from a GitHub repository, op
 | Node.js          | ≥ 18                                                                         |
 | npm              | ≥ 9                                                                          |
 | GitHub token     | Personal access token **or** [GitHub CLI](https://cli.github.com/) logged in |
-| OpenAI API key   | Required only for AI summarization (`--no-ai` skips it)                      |
+| OpenAI API key   | Required only for AI summarization (`--ai`)                                  |
 | SMTP credentials | Required only for email (`--email`)                                          |
+| Teams webhook    | Required only for webhook delivery (`--webhook`)                             |
 
 ---
 
@@ -95,16 +97,17 @@ prly run
 
 All secrets are provided via environment variables. Prly loads a `.env` file from the **current working directory** automatically (via `dotenv`), or you can export them in your shell profile.
 
-| Variable              | Required               | Description                                                                                          |
-| --------------------- | ---------------------- | ---------------------------------------------------------------------------------------------------- |
-| `GITHUB_TOKEN`        | Optional†              | GitHub personal access token with `repo` read scope. Falls back to `gh auth token` if not set.       |
-| `OPENAI_API_KEY`      | Yes (unless `--no-ai`) | OpenAI API key for generating summaries.                                                             |
-| `EMAIL_USER`          | Yes (with `--email`)   | SMTP username and the default sender/recipient address.                                              |
-| `EMAIL_PASS`          | Yes (with `--email`)   | SMTP password or app password.                                                                       |
-| `EMAIL_HOST`          | No                     | SMTP host (e.g. `smtp.gmail.com`). Required when sending email.                                      |
-| `EMAIL_PORT`          | No                     | SMTP port. Defaults to `587`.                                                                        |
-| `EMAIL_SECURE`        | No                     | Set to `true` to use TLS (port 465). Defaults to `false`.                                            |
-| `GITHUB_API_BASE_URL` | No                     | Override the GitHub API base URL (e.g. for GitHub Enterprise). Defaults to `https://api.github.com`. |
+| Variable              | Required               | Description                                                                                                 |
+| --------------------- | ---------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `GITHUB_TOKEN`        | Optional†              | GitHub personal access token with `repo` read scope. Falls back to `gh auth token` if not set.              |
+| `OPENAI_API_KEY`      | Yes (unless `--no-ai`) | OpenAI API key for generating summaries.                                                                    |
+| `EMAIL_USER`          | Yes (with `--email`)   | SMTP username and the default sender/recipient address.                                                     |
+| `EMAIL_PASS`          | Yes (with `--email`)   | SMTP password or app password.                                                                              |
+| `EMAIL_HOST`          | No                     | SMTP host (e.g. `smtp.gmail.com`). Required when sending email.                                             |
+| `EMAIL_PORT`          | No                     | SMTP port. Defaults to `587`.                                                                               |
+| `EMAIL_SECURE`        | No                     | Set to `true` to use TLS (port 465). Defaults to `false`.                                                   |
+| `WEBHOOK_URL`         | Yes (with `--webhook`) | Incoming webhook URL for Microsoft Teams. Create one via **Teams channel → Connectors → Incoming Webhook**. |
+| `GITHUB_API_BASE_URL` | No                     | Override the GitHub API base URL (e.g. for GitHub Enterprise). Defaults to `https://api.github.com`.        |
 
 † If `GITHUB_TOKEN` is not set, Prly will call `gh auth token` automatically. Run `gh auth login` once and you never need to manage a token manually.
 
@@ -117,6 +120,7 @@ EMAIL_USER=you@example.com
 EMAIL_PASS=your-app-password
 EMAIL_HOST=smtp.gmail.com
 EMAIL_PORT=587
+WEBHOOK_URL=https://your-org.webhook.office.com/webhookb2/...
 ```
 
 ---
@@ -167,14 +171,14 @@ Fetch, filter, and summarize your PRs. Outputs and delivery channels are **opt-i
 prly run [options]
 ```
 
-| Option           | Description                                              | Default   |
-| ---------------- | -------------------------------------------------------- | --------- |
-| `--since <date>` | Start of the date range (`YYYY-MM-DD`)                   | Yesterday |
-| `--until <date>` | End of the date range (`YYYY-MM-DD`)                     | Today     |
-| `--ai`           | Generate an AI summary via OpenAI                        | Off       |
-| `--email`        | Send the summary by email                                | Off       |
-| `--webhook`      | Post the summary to the configured webhook               | Off       |
-| `--verbose`      | Print each PR's changed files while filtering by modules | Off       |
+| Option           | Description                                                               | Default   |
+| ---------------- | ------------------------------------------------------------------------- | --------- |
+| `--since <date>` | Start of the date range (`YYYY-MM-DD`)                                    | Yesterday |
+| `--until <date>` | End of the date range (`YYYY-MM-DD`)                                      | Today     |
+| `--ai`           | Generate an AI summary via OpenAI                                         | Off       |
+| `--email`        | Send the summary by email                                                 | Off       |
+| `--webhook`      | Build a Teams Adaptive Card with AI and post it to the configured webhook | Off       |
+| `--verbose`      | Print each PR's changed files while filtering by modules                  | Off       |
 
 ---
 
@@ -274,17 +278,23 @@ prly config test
 # List yesterday's PRs (no AI, no delivery)
 prly run
 
-# Summarize with AI only — no email, no webhook
+# Summarize with AI only — inspect the output before wiring up delivery
 prly run --ai
+
+# Post an Adaptive Card to Teams (AI analyses PRs, card is built from that analysis)
+prly run --ai --webhook
 
 # Summarize a specific date range and email the result
 prly run --since 2026-03-01 --until 2026-03-07 --ai --email
 
-# Summarize this week and post to webhook
+# Summarize this week and post to Teams only (no email)
 prly run --since 2026-03-16 --ai --webhook
 
-# Full delivery: AI summary + email + webhook
+# Full delivery: AI summary + email + Teams Adaptive Card
 prly run --ai --email --webhook
+
+# Webhook-only (card generated directly from raw PR data, no separate text summary)
+prly run --webhook
 
 # See which files each PR touched while filtering
 prly run --verbose
