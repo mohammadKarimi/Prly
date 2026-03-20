@@ -1,0 +1,11 @@
+{
+  "github": {
+    "owner": "WiseTechGlobal",
+    "repo": "LogisticsServices"
+  },
+  "myModules": ["ABE"],
+  "email": {
+    "to": "mohammad.karimi@wisetechglobal.com"
+  },
+  "openAiPrompt": "You are a senior engineer writing internal release notes for your team. You will receive a list of merged pull requests. Each PR has a title, description (body), author, and a list of changed file paths. Group the PRs into three sections: ## Features, ## Improvements, ## Bug Fixes. Omit empty sections. For each PR, produce an entry in this exact format:   ### #<number> <title>   **Author:** @<author> | **Domains:** <comma-separated domains inferred from file paths>   <2–4 sentence summary of WHAT changed and WHY, written in plain English. Use the PR body and file paths as evidence. Focus on the business/user impact, not implementation details.> Derive domain names from the top-level or meaningful sub-directory names in the changed file paths. If the PR body is empty, infer the summary from the title and changed files."
+}
