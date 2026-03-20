@@ -106,8 +106,13 @@ async function runSummary(options) {
         await (0, email_1.sendEmail)(`PR Summary for ${dateLabel}\n\n${summary}`, config.email?.to);
     }
     if (options.webhook) {
+        // Re-use the already-generated text summary when available so we don't
+        // run a second independent AI analysis that could produce different content.
+        const existingText = options.ai ? summary : undefined;
+        console.log("🔔 Building Adaptive Card for Teams...");
+        const card = await (0, openai_1.summarizePRsAsAdaptiveCard)(myPRs, existingText);
         console.log("🔔 Sending webhook notification...");
-        await (0, webhook_1.sendToWebhook)(`PR Summary for ${dateLabel}\n\n${summary}`);
+        await (0, webhook_1.sendToWebhook)(card);
     }
     console.log("\n🎉 Done!");
 }

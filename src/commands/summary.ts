@@ -1,6 +1,6 @@
 import { loadConfig, isMyPR } from "../config";
 import { fetchMergedPRs, fetchPRFiles } from "../providers/github";
-import { summarizePRs } from "../providers/openai";
+import { summarizePRs, summarizePRsAsAdaptiveCard } from "../providers/openai";
 import { sendEmail } from "../providers/email";
 import { sendToWebhook } from "../providers/webhook";
 import { RunOptions, PullRequest, DateRange } from "../types";
@@ -148,8 +148,13 @@ export async function runSummary(options: RunOptions): Promise<void> {
   }
 
   if (options.webhook) {
+    // Re-use the already-generated text summary when available so we don't
+    // run a second independent AI analysis that could produce different content.
+    const existingText = options.ai ? summary : undefined;
+    console.log("🔔 Building Adaptive Card for Teams...");
+    const card = await summarizePRsAsAdaptiveCard(myPRs, existingText);
     console.log("🔔 Sending webhook notification...");
-    await sendToWebhook(`PR Summary for ${dateLabel}\n\n${summary}`);
+    await sendToWebhook(card);
   }
 
   console.log("\n🎉 Done!");

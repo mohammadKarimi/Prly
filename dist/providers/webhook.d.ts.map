@@ -1,1 +1,1 @@
-{"version":3,"file":"webhook.d.ts","sourceRoot":"","sources":["../../src/providers/webhook.ts"],"names":[],"mappings":"AAgBA;;;;;;;;GAQG;AACH,wBAAsB,aAAa,CAAC,OAAO,EAAE,MAAM,GAAG,OAAO,CAAC,IAAI,CAAC,CAgClE"}
+{"version":3,"file":"webhook.d.ts","sourceRoot":"","sources":["../../src/providers/webhook.ts"],"names":[],"mappings":"AAIA;;;;;;GAMG;AACH,wBAAsB,aAAa,CAAC,IAAI,EAAE,MAAM,GAAG,OAAO,CAAC,IAAI,CAAC,CAuB/D"}
