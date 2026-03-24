@@ -1,9 +1,5 @@
 #!/usr/bin/env node
 
-// Load .env from the current working directory before anything else.
-import dotenv from "dotenv";
-dotenv.config({ override: true });
-
 import { Command } from "commander";
 import { runSummary, listPRs, listAllPRs } from "./commands/summary";
 import {
@@ -23,8 +19,8 @@ function registerRunCommand(program: Command): void {
     .description("Fetch, filter, and summarize your PRs")
     .option("--since <date>", "Start date (YYYY-MM-DD), default: yesterday")
     .option("--until <date>", "End date   (YYYY-MM-DD), default: today")
-    .option("--ai",      "Generate an AI summary via OpenAI")
-    .option("--email",   "Send the summary by email")
+    .option("--ai", "Generate an AI summary via OpenAI")
+    .option("--email", "Send the summary by email")
     .option("--webhook", "Post the summary to the configured webhook")
     .option(
       "--verbose",
@@ -32,10 +28,10 @@ function registerRunCommand(program: Command): void {
     )
     .action(async (opts) => {
       await runSummary({
-        since:   opts.since,
-        until:   opts.until,
-        ai:      !!opts.ai,
-        email:   !!opts.email,
+        since: opts.since,
+        until: opts.until,
+        ai: !!opts.ai,
+        email: !!opts.email,
         webhook: !!opts.webhook,
         verbose: !!opts.verbose,
       });
@@ -86,13 +82,9 @@ function registerConfigCommands(program: Command): void {
       const saved = await initConfig();
       console.log(`\n✅ Config saved to: ${configPath()}`);
       console.log(`   Repo   : ${saved.github.owner}/${saved.github.repo}`);
-      console.log(`   Modules: ${saved.myModules.join(", ") || "(none)"}`);
       console.log(
-        `\n💡 Set secrets as environment variables (e.g. in your shell profile):`,
+        `   Modules: ${saved.github.filterModules.join(", ") || "(none)"}`,
       );
-      console.log(`   OPENAI_API_KEY=sk-...`);
-      console.log(`   EMAIL_PASS=...`);
-      console.log(`   EMAIL_USER=...`);
     });
 
   config
@@ -108,7 +100,9 @@ function registerConfigCommands(program: Command): void {
     .description('Add a directory to "my modules" (e.g. src/features/auth)')
     .action((modulePath: string) => {
       const updated = addModule(modulePath);
-      console.log(`✅ Modules: ${updated.myModules.join(", ") || "(none)"}`);
+      console.log(
+        `✅ Modules: ${updated.github.filterModules.join(", ") || "(none)"}`,
+      );
     });
 
   config
@@ -116,7 +110,9 @@ function registerConfigCommands(program: Command): void {
     .description("Remove a directory from your modules")
     .action((modulePath: string) => {
       const updated = removeModule(modulePath);
-      console.log(`✅ Modules: ${updated.myModules.join(", ") || "(none)"}`);
+      console.log(
+        `✅ Modules: ${updated.github.filterModules.join(", ") || "(none)"}`,
+      );
     });
 
   config

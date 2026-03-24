@@ -1,20 +1,21 @@
 import fetch from "node-fetch";
+import { loadConfig } from "../config";
 
 // ─── Public API ───────────────────────────────────────────────────────────────
 
 /**
- * POSTs an Adaptive Card payload to the webhook URL configured in the
- * `WEBHOOK_URL` env var.
+ * POSTs an Adaptive Card payload to the webhook URL configured in the config file.
  *
  * Pass the object returned by `summarizePRsAsAdaptiveCard` directly.
- * Silently skips (logs a hint) when `WEBHOOK_URL` is not set.
+ * Silently skips (logs a hint) when `webhook.url` is not set.
  */
 export async function sendToWebhook(card: object): Promise<void> {
-  const webhookUrl = process.env.WEBHOOK_URL;
+  const config = loadConfig();
+  const webhookUrl = config.webhook?.url;
 
   if (!webhookUrl) {
     console.log(
-      "⚠️  WEBHOOK_URL is not set — skipping webhook. Add it to your .env to enable.",
+      "⚠️  webhook.url is not set — skipping webhook. Add it to your config to enable.",
     );
     return;
   }
