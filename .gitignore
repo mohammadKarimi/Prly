@@ -3,6 +3,9 @@
 ##
 ## Get latest from `dotnet new gitignore`
 
+# Build output
+dist/
+
 # dotenv files
 .env
 
@@ -482,10 +485,3 @@ $RECYCLE.BIN/
 
 # Virtual environment folder
 venv/
-
-/modules/botFather/src/BotFather.Api/appsettings.Development.json
-/modules/backend/src/Riter.BackEnd/appsettings.Development.json
-/modules/extension/dist
-
-modules/panel/bun.lock
-/modules/backend/src/Riter.McpServer/appsettings.Development.json
