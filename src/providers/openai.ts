@@ -124,12 +124,13 @@ function buildUserMessage(prs: PullRequest[]): string {
  * Requires the `OPENAI_API_KEY` environment variable.
  */
 export async function summarizePRs(prs: PullRequest[]): Promise<string> {
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) {
-    throw new Error("OPENAI_API_KEY environment variable is not set.");
-  }
-
   const config = loadConfig();
+  const apiKey = config.openai?.apiKey;
+  if (!apiKey) {
+    throw new Error(
+      'OpenAI API key is not configured. Set "openai.apiKey" in your config.',
+    );
+  }
   const language = config.llmOptions?.outputLanguage ?? "English";
   const basePrompt = config.llmOptions?.prompt ?? DEFAULT_OPENAI_PROMPT;
   const systemPrompt = `${basePrompt}\n\nIMPORTANT: Write the entire output in ${language}.`;
@@ -188,9 +189,12 @@ export async function summarizePRsAsAdaptiveCard(
   prs: PullRequest[],
   existingSummary?: string,
 ): Promise<object> {
-  const apiKey = process.env.OPENAI_API_KEY;
+  const config = loadConfig();
+  const apiKey = config.openai?.apiKey;
   if (!apiKey) {
-    throw new Error("OPENAI_API_KEY environment variable is not set.");
+    throw new Error(
+      'OpenAI API key is not configured. Set "openai.apiKey" in your config.',
+    );
   }
 
   const messages: OpenAIMessage[] = existingSummary

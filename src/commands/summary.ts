@@ -67,8 +67,8 @@ export async function runSummary(options: RunOptions): Promise<void> {
 
   console.log(`\n📅 Date range: ${dateLabel}`);
   console.log(`📦 Repo: ${config.github.owner}/${config.github.repo}`);
-  if (config.myModules.length > 0) {
-    console.log(`🗂  My modules: ${config.myModules.join(", ")}`);
+  if (config.github.filterModules.length > 0) {
+    console.log(`🗂  My modules: ${config.github.filterModules.join(", ")}`);
   }
 
   console.log("\n⏳ Fetching merged PRs...");
@@ -84,7 +84,7 @@ export async function runSummary(options: RunOptions): Promise<void> {
     allPRs,
     config.github.owner,
     config.github.repo,
-    config.myModules,
+    config.github.filterModules,
     options.verbose,
   );
 
@@ -97,7 +97,7 @@ export async function runSummary(options: RunOptions): Promise<void> {
   printPRList(myPRs);
 
   // Fetch changed files for AI domain analysis when the module filter didn't already do it
-  if (options.ai && config.myModules.length === 0) {
+  if (options.ai && config.github.filterModules.length === 0) {
     console.log("🔍 Fetching changed files for domain analysis...");
     await attachChangedFiles(myPRs, config.github.owner, config.github.repo);
   }
@@ -113,10 +113,7 @@ export async function runSummary(options: RunOptions): Promise<void> {
 
   if (options.email) {
     console.log("📧 Sending email...");
-    await sendEmail(
-      `PR Summary for ${dateLabel}\n\n${summary}`,
-      config.email?.to,
-    );
+    await sendEmail(`PR Summary for ${dateLabel}\n\n${summary}`);
   }
 
   if (options.webhook) {
@@ -154,7 +151,7 @@ export async function listPRs(
     allPRs,
     config.github.owner,
     config.github.repo,
-    config.myModules,
+    config.github.filterModules,
   );
 
   if (myPRs.length === 0) {

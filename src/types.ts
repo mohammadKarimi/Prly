@@ -3,14 +3,26 @@ export interface Config {
   github: {
     owner: string;
     repo: string;
+    token?: string;
+    apiBaseUrl?: string;
+    filterModules: string[];
   };
-  /** Directory paths you own, e.g. `["src/features/auth", "libs/ui"]`. */
-  myModules: string[];
+  openai?: {
+    apiKey?: string;
+  };
   email?: {
-    /** Recipient address; falls back to the `EMAIL_USER` env var when omitted. */
-    to?: string;
+    smtp?: {
+      user?: string;
+      pass?: string;
+      host?: string;
+      port?: number;
+      secure?: boolean;
+    };
+    reciever?: string | string[]; // Email address or addresses to send the summary to. Falls back to `EMAIL_TO` env var.
   };
-  /** OpenAI / LLM options. */
+  webhook?: {
+    url?: string;
+  };
   llmOptions?: {
     /** System prompt sent to OpenAI. Edit this to customise the summary style. */
     prompt?: string;
