@@ -22,6 +22,7 @@ function registerRunCommand(program: Command): void {
     .option("--ai", "Generate an AI summary via OpenAI")
     .option("--email", "Send the summary by email")
     .option("--webhook", "Post the summary to the configured webhook")
+    .option("--ms-teams", "Post the summary to the configured MS Teams channel")
     .option(
       "--verbose",
       "Show every PR's changed files during module filtering",
@@ -33,6 +34,7 @@ function registerRunCommand(program: Command): void {
         ai: !!opts.ai,
         email: !!opts.email,
         webhook: !!opts.webhook,
+        msTeams: !!opts.msTeams,
         verbose: !!opts.verbose,
       });
     });

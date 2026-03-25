@@ -185,26 +185,38 @@ export async function initConfig(): Promise<Config> {
   );
   const emailReceiver = await ask(
     "Email recipient address(es), comma-separated (leave blank to skip email)",
-    Array.isArray(existing?.email?.reciever)
-      ? existing.email.reciever.join(", ")
-      : (existing?.email?.reciever ?? ""),
+    Array.isArray(existing?.integrations?.email?.reciever)
+      ? existing.integrations.email.reciever.join(", ")
+      : (existing?.integrations?.email?.reciever ?? ""),
   );
   const emailUser = await ask(
     "SMTP user / sender address",
-    existing?.email?.smtp?.user ?? "",
+    existing?.integrations?.email?.smtp?.user ?? "",
   );
   const emailPass = await ask(
     "SMTP password",
-    sensitiveHint(existing?.email?.smtp?.pass),
+    sensitiveHint(existing?.integrations?.email?.smtp?.pass),
   );
-  const emailHost = await ask("SMTP host", existing?.email?.smtp?.host ?? "");
+  const emailHost = await ask(
+    "SMTP host",
+    existing?.integrations?.email?.smtp?.host ?? "",
+  );
   const emailPort = await ask(
     "SMTP port",
-    existing?.email?.smtp?.port?.toString() ?? "587",
+    existing?.integrations?.email?.smtp?.port?.toString() ?? "587",
   );
   const emailSecure = await ask(
     "SMTP secure / TLS (true/false)",
-    existing?.email?.smtp?.secure?.toString() ?? "false",
+    existing?.integrations?.email?.smtp?.secure?.toString() ?? "false",
+  );
+
+  // ── MS Teams ──────────────────────────────────────────────────────────────
+  console.log(
+    "\n── MS Teams ─────────────────────────────────────────────────\n",
+  );
+  const msTeamsWebhookUrl = await ask(
+    "MS Teams Incoming Webhook URL (leave blank to skip)",
+    existing?.integrations?.msTeams?.webhookUrl ?? "",
   );
 
   // ── Webhook ───────────────────────────────────────────────────────────────
@@ -212,8 +224,8 @@ export async function initConfig(): Promise<Config> {
     "\n── Webhook ──────────────────────────────────────────────────\n",
   );
   const webhookUrl = await ask(
-    "Teams / webhook URL",
-    existing?.webhook?.url ?? "",
+    "Webhook URL (leave blank to skip)",
+    existing?.integrations?.webhook?.url ?? "",
   );
 
   // ── LLM options ───────────────────────────────────────────────────────────
@@ -240,7 +252,9 @@ export async function initConfig(): Promise<Config> {
   const resolvedOpenAiKey =
     openAiKey === "***" ? existing?.openai?.apiKey : openAiKey || undefined;
   const resolvedEmailPass =
-    emailPass === "***" ? existing?.email?.smtp?.pass : emailPass || undefined;
+    emailPass === "***"
+      ? existing?.integrations?.email?.smtp?.pass
+      : emailPass || undefined;
 
   // Parse comma-separated receiver addresses
   const parsedReceiver = emailReceiver
@@ -270,21 +284,26 @@ export async function initConfig(): Promise<Config> {
       filterModules: modules,
     },
     ...(resolvedOpenAiKey ? { openai: { apiKey: resolvedOpenAiKey } } : {}),
-    ...(hasEmailConfig
-      ? {
-          email: {
-            ...(reciever ? { reciever } : {}),
-            smtp: {
-              ...(emailUser ? { user: emailUser } : {}),
-              ...(resolvedEmailPass ? { pass: resolvedEmailPass } : {}),
-              ...(emailHost ? { host: emailHost } : {}),
-              ...(emailPort ? { port: parseInt(emailPort, 10) } : {}),
-              ...(emailSecure ? { secure: emailSecure === "true" } : {}),
+    integrations: {
+      ...(hasEmailConfig
+        ? {
+            email: {
+              ...(reciever ? { reciever } : {}),
+              smtp: {
+                ...(emailUser ? { user: emailUser } : {}),
+                ...(resolvedEmailPass ? { pass: resolvedEmailPass } : {}),
+                ...(emailHost ? { host: emailHost } : {}),
+                ...(emailPort ? { port: parseInt(emailPort, 10) } : {}),
+                ...(emailSecure ? { secure: emailSecure === "true" } : {}),
+              },
             },
-          },
-        }
-      : {}),
-    ...(webhookUrl ? { webhook: { url: webhookUrl } } : {}),
+          }
+        : {}),
+      ...(webhookUrl ? { webhook: { url: webhookUrl } } : {}),
+      ...(msTeamsWebhookUrl
+        ? { msTeams: { webhookUrl: msTeamsWebhookUrl } }
+        : {}),
+    },
     llmOptions: {
       prompt:
         customPrompt || existing?.llmOptions?.prompt || DEFAULT_OPENAI_PROMPT,

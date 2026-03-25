@@ -4,6 +4,7 @@ import { fetchMergedPRs, fetchPRFiles } from "../providers/github";
 import { summarizePRs } from "../providers/openai";
 import { sendEmail } from "../providers/email";
 import { sendToWebhook } from "../providers/webhook";
+import { sendToMsTeams } from "../providers/msTeams";
 import { RunOptions, PullRequest } from "../types";
 import { buildDateRange, formatDateLabel } from "../utils/date-helper";
 
@@ -131,6 +132,12 @@ export async function runSummary(options: RunOptions): Promise<void> {
     const webhookSpinner = ora("Sending webhook notification...").start();
     await sendToWebhook(summary);
     webhookSpinner.succeed("Webhook sent.");
+  }
+
+  if (options.msTeams) {
+    const teamsSpinner = ora("Sending MS Teams notification...").start();
+    await sendToMsTeams(summary);
+    teamsSpinner.succeed("MS Teams notification sent.");
   }
 
   console.log("\n🎉 Done!");

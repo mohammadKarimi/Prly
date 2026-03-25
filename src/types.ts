@@ -10,18 +10,23 @@ export interface Config {
   openai?: {
     apiKey?: string;
   };
-  email?: {
-    smtp?: {
-      user?: string;
-      pass?: string;
-      host?: string;
-      port?: number;
-      secure?: boolean;
+  integrations?: {
+    email?: {
+      smtp?: {
+        user?: string;
+        pass?: string;
+        host?: string;
+        port?: number;
+        secure?: boolean;
+      };
+      reciever?: string | string[]; // Email address or addresses to send the summary to. Falls back to `EMAIL_TO` env var.
     };
-    reciever?: string | string[]; // Email address or addresses to send the summary to. Falls back to `EMAIL_TO` env var.
-  };
-  webhook?: {
-    url?: string;
+    webhook?: {
+      url?: string;
+    };
+    msTeams?: {
+      webhookUrl?: string;
+    };
   };
   llmOptions?: {
     /** System prompt sent to OpenAI. Edit this to customise the summary style. */
@@ -67,6 +72,8 @@ export interface RunOptions {
   email: boolean;
   /** When `true`, the summary is posted to the configured webhook. */
   webhook: boolean;
+  /** When `true`, the summary is posted to the configured MS Teams channel. */
+  msTeams: boolean;
   /** Print each PR's changed files while filtering by modules. */
   verbose?: boolean;
 }

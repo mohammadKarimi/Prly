@@ -5,11 +5,11 @@ import { loadConfig } from "../config";
 
 export async function sendToWebhook(existingText: string): Promise<void> {
   const config = loadConfig();
-  const webhookUrl = config.webhook?.url;
+  const webhookUrl = config.integrations?.webhook?.url;
 
   if (!webhookUrl) {
     console.log(
-      "⚠️  webhook.url is not set — skipping webhook. Add it to your config to enable.",
+      "⚠️  integrations.webhook.url is not set — skipping webhook. Add it to your config to enable.",
     );
     return;
   }
@@ -25,6 +25,4 @@ export async function sendToWebhook(existingText: string): Promise<void> {
       `Webhook request failed — ${res.status}: ${await res.text()}`,
     );
   }
-
-  console.log("✅ Webhook notification sent.");
 }
