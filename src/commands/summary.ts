@@ -1,6 +1,7 @@
+import ora from "ora";
 import { loadConfig, isMyPR } from "../config";
 import { fetchMergedPRs, fetchPRFiles } from "../providers/github";
-import { summarizePRs, summarizePRsAsAdaptiveCard } from "../providers/openai";
+import { summarizePRs } from "../providers/openai";
 import { sendEmail } from "../providers/email";
 import { sendToWebhook } from "../providers/webhook";
 import { RunOptions, PullRequest } from "../types";
@@ -40,7 +41,8 @@ async function filterByModules(
 ): Promise<PullRequest[]> {
   if (myModules.length === 0) return prs;
 
-  console.log("🔍 Filtering by your modules...");
+  const spinner = verbose ? null : ora("Filtering by your modules...").start();
+  if (verbose) console.log("🔍 Filtering by your modules...");
   const filtered: PullRequest[] = [];
 
   for (const pr of prs) {
@@ -54,7 +56,11 @@ async function filterByModules(
     if (matched) filtered.push(pr);
   }
 
-  console.log(`   ${filtered.length} PR(s) touch your modules.`);
+  if (spinner) {
+    spinner.succeed(`${filtered.length} PR(s) touch your modules.`);
+  } else {
+    console.log(`   ${filtered.length} PR(s) touch your modules.`);
+  }
   return filtered;
 }
 
@@ -71,14 +77,14 @@ export async function runSummary(options: RunOptions): Promise<void> {
     console.log(`🗂  My modules: ${config.github.filterModules.join(", ")}`);
   }
 
-  console.log("\n⏳ Fetching merged PRs...");
+  const fetchSpinner = ora("Fetching merged PRs...").start();
   const allPRs = await fetchMergedPRs(
     config.github.owner,
     config.github.repo,
     range.since,
     range.until,
   );
-  console.log(`   Found ${allPRs.length} merged PR(s) in range.`);
+  fetchSpinner.succeed(`Found ${allPRs.length} merged PR(s) in range.`);
 
   const myPRs = await filterByModules(
     allPRs,
@@ -98,8 +104,11 @@ export async function runSummary(options: RunOptions): Promise<void> {
 
   // Fetch changed files for AI domain analysis when the module filter didn't already do it
   if (options.ai && config.github.filterModules.length === 0) {
-    console.log("🔍 Fetching changed files for domain analysis...");
+    const filesSpinner = ora(
+      "Fetching changed files for domain analysis...",
+    ).start();
     await attachChangedFiles(myPRs, config.github.owner, config.github.repo);
+    filesSpinner.succeed("Changed files fetched.");
   }
 
   let summary = myPRs
@@ -107,23 +116,21 @@ export async function runSummary(options: RunOptions): Promise<void> {
     .join("\n");
 
   if (options.ai) {
-    console.log("\n🧠 Generating AI summary...");
-    summary = await summarizePRs(myPRs);
+    const aiSpinner = ora("Generating AI summary...").start();
+    summary = await summarizePRs(myPRs, () => aiSpinner.stop());
+    console.log("\n✔ AI summary ready.");
   }
 
   if (options.email) {
-    console.log("📧 Sending email...");
+    const emailSpinner = ora("Sending email...").start();
     await sendEmail(`PR Summary for ${dateLabel}\n\n${summary}`);
+    emailSpinner.succeed("Email sent.");
   }
 
   if (options.webhook) {
-    // Re-use the already-generated text summary when available so we don't
-    // run a second independent AI analysis that could produce different content.
-    const existingText = options.ai ? summary : undefined;
-    console.log("🔔 Building Adaptive Card for Teams...");
-    const card = await summarizePRsAsAdaptiveCard(myPRs, existingText);
-    console.log("🔔 Sending webhook notification...");
-    await sendToWebhook(card);
+    const webhookSpinner = ora("Sending webhook notification...").start();
+    await sendToWebhook(summary);
+    webhookSpinner.succeed("Webhook sent.");
   }
 
   console.log("\n🎉 Done!");
@@ -139,13 +146,14 @@ export async function listPRs(
   console.log(`\n📅 Date range: ${dateLabel}`);
   console.log(`📦 Repo: ${config.github.owner}/${config.github.repo}`);
 
-  console.log("\n⏳ Fetching merged PRs...");
+  const fetchSpinner = ora("Fetching merged PRs...").start();
   const allPRs = await fetchMergedPRs(
     config.github.owner,
     config.github.repo,
     range.since,
     range.until,
   );
+  fetchSpinner.succeed(`Found ${allPRs.length} merged PR(s) in range.`);
 
   const myPRs = await filterByModules(
     allPRs,
@@ -174,13 +182,14 @@ export async function listAllPRs(
   console.log(`📦 Repo: ${config.github.owner}/${config.github.repo}`);
   console.log("   (no module filter — showing ALL merged PRs)\n");
 
-  console.log("⏳ Fetching merged PRs...");
+  const fetchSpinner = ora("Fetching merged PRs...").start();
   const allPRs = await fetchMergedPRs(
     config.github.owner,
     config.github.repo,
     range.since,
     range.until,
   );
+  fetchSpinner.succeed(`Found ${allPRs.length} merged PR(s).`);
 
   if (allPRs.length === 0) {
     console.log("\n⚠️  No PRs merged in this range.");
