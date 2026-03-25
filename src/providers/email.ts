@@ -31,18 +31,18 @@ function buildHtml(summary: string): string {
  */
 export async function sendEmail(summary: string): Promise<void> {
   const config = loadConfig();
-  const smtp = config.email?.smtp;
+  const smtp = config.integrations?.email?.smtp;
   const user = smtp?.user;
   const pass = smtp?.pass;
 
   if (!user || !pass) {
     throw new Error(
-      'Email SMTP credentials are not configured. Set "email.smtp.user" and "email.smtp.pass" in your config.',
+      'Email SMTP credentials are not configured. Set "integrations.email.smtp.user" and "integrations.email.smtp.pass" in your config.',
     );
   }
 
   // Resolve recipient(s)
-  const reciever = config.email?.reciever;
+  const reciever = config.integrations?.email?.reciever;
   const to = Array.isArray(reciever) ? reciever.join(", ") : (reciever ?? user);
 
   const port = smtp?.port ?? 587;

@@ -6,7 +6,7 @@ import JavaScriptObfuscator from "javascript-obfuscator";
 
 const nodeExternal = builtinModules.flatMap((m) => [m, `node:${m}`]);
 
-const npmExternal = ["commander", "dotenv", "node-fetch", "nodemailer"];
+const npmExternal = ["commander", "dotenv", "node-fetch", "nodemailer", "ora"];
 
 function obfuscatorPlugin(): Plugin {
   return {
