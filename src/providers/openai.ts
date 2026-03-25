@@ -180,3 +180,57 @@ export async function summarizePRs(
   process.stdout.write("\n");
   return fullText || "No summary generated.";
 }
+
+/**
+ * Sends `prs` to OpenAI and returns a parsed Adaptive Card JSON object
+ * ready to be posted to a Microsoft Teams Incoming Webhook.
+ *
+ * Uses a non-streaming request so the full JSON can be parsed reliably.
+ * Requires `openai.apiKey` to be set in the config.
+ */
+export async function summarizePRsAsAdaptiveCard(
+  prs: PullRequest[],
+): Promise<object> {
+  const config = loadConfig();
+  const apiKey = config.openai?.apiKey;
+  if (!apiKey) {
+    throw new Error(
+      'OpenAI API key is not configured. Set "openai.apiKey" in your config.',
+    );
+  }
+
+  const messages: OpenAIMessage[] = [
+    { role: "system", content: ADAPTIVE_CARD_SYSTEM_PROMPT },
+    { role: "user", content: buildUserMessage(prs) },
+  ];
+
+  const res = await fetch(OPENAI_CHAT_URL, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: OPENAI_MODEL,
+      messages,
+      temperature: 0.2,
+      stream: false,
+    }),
+  });
+
+  if (!res.ok) {
+    throw new Error(`OpenAI API error ${res.status}: ${await res.text()}`);
+  }
+
+  const data = (await res.json()) as OpenAIResponse;
+  const content = data.choices?.[0]?.message?.content ?? "";
+
+  // Strip markdown fences if the model wraps the JSON anyway
+  const cleaned = content.replace(/^```[\w]*\n?/, "").replace(/\n?```$/, "").trim();
+
+  try {
+    return JSON.parse(cleaned) as object;
+  } catch {
+    throw new Error(`OpenAI returned invalid JSON for the Adaptive Card:\n${cleaned}`);
+  }
+}

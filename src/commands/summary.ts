@@ -1,10 +1,10 @@
 import ora from "ora";
 import { loadConfig, isMyPR } from "../config";
 import { fetchMergedPRs, fetchPRFiles } from "../providers/github";
-import { summarizePRs } from "../providers/openai";
+import { summarizePRs, summarizePRsAsAdaptiveCard } from "../providers/openai";
 import { sendEmail } from "../providers/email";
 import { sendToWebhook } from "../providers/webhook";
-import { sendToMsTeams } from "../providers/msTeams";
+import { sendToMsTeams, sendAdaptiveCardToMsTeams } from "../providers/msTeams";
 import { RunOptions, PullRequest } from "../types";
 import { buildDateRange, formatDateLabel } from "../utils/date-helper";
 
@@ -136,7 +136,13 @@ export async function runSummary(options: RunOptions): Promise<void> {
 
   if (options.msTeams) {
     const teamsSpinner = ora("Sending MS Teams notification...").start();
-    await sendToMsTeams(summary);
+    if (options.ai) {
+      // When AI is enabled, generate a rich Adaptive Card directly from the PR data
+      const card = await summarizePRsAsAdaptiveCard(myPRs);
+      await sendAdaptiveCardToMsTeams(card);
+    } else {
+      await sendToMsTeams(summary);
+    }
     teamsSpinner.succeed("MS Teams notification sent.");
   }
 
