@@ -1,0 +1,198 @@
+name: "Prly — PR Summary"
+description: "Fetch merged PRs, filter by modules, generate an AI summary, and send it via email, webhook, or MS Teams."
+author: "mohammadKarimi"
+
+branding:
+  icon: "book-open"
+  color: "blue"
+
+# ─── Inputs ───────────────────────────────────────────────────────────────────
+
+inputs:
+  # ── Date range ──────────────────────────────────────────────────────────────
+  since:
+    description: "Start date (YYYY-MM-DD). Defaults to yesterday."
+    required: false
+    default: ""
+  until:
+    description: "End date (YYYY-MM-DD). Defaults to today."
+    required: false
+    default: ""
+
+  # ── GitHub ──────────────────────────────────────────────────────────────────
+  github-token:
+    description: "GitHub Personal Access Token with `repo` read scope. Use secrets.GITHUB_TOKEN for public repos."
+    required: true
+  github-owner:
+    description: "GitHub organisation or user that owns the repository."
+    required: true
+  github-repo:
+    description: "Repository name (without the owner prefix)."
+    required: true
+  github-api-base-url:
+    description: "GitHub API base URL. Override for GitHub Enterprise Server."
+    required: false
+    default: "https://api.github.com"
+  filter-modules:
+    description: "Comma-separated directory prefixes to filter PRs to your areas (e.g. src/features/auth,src/payments)."
+    required: false
+    default: ""
+
+  # ── AI ──────────────────────────────────────────────────────────────────────
+  ai:
+    description: "Set to 'true' to generate an AI summary via OpenAI."
+    required: false
+    default: "false"
+  openai-api-key:
+    description: "OpenAI API key. Required when ai is true."
+    required: false
+    default: ""
+  output-language:
+    description: "Language for the AI-generated summary (e.g. English, Persian, Spanish)."
+    required: false
+    default: "English"
+  custom-prompt:
+    description: "Custom system prompt sent to OpenAI. Leave blank to use the built-in default."
+    required: false
+    default: ""
+
+  # ── Email ────────────────────────────────────────────────────────────────────
+  email:
+    description: "Set to 'true' to send the summary by email."
+    required: false
+    default: "false"
+  email-receiver:
+    description: "Recipient email address(es), comma-separated."
+    required: false
+    default: ""
+  smtp-user:
+    description: "SMTP sender address / username."
+    required: false
+    default: ""
+  smtp-pass:
+    description: "SMTP password."
+    required: false
+    default: ""
+  smtp-host:
+    description: "SMTP host."
+    required: false
+    default: ""
+  smtp-port:
+    description: "SMTP port."
+    required: false
+    default: "587"
+  smtp-secure:
+    description: "Use TLS (true/false)."
+    required: false
+    default: "false"
+
+  # ── Webhook ──────────────────────────────────────────────────────────────────
+  webhook:
+    description: "Set to 'true' to post the summary to a webhook URL."
+    required: false
+    default: "false"
+  webhook-url:
+    description: "Webhook URL to POST the summary to."
+    required: false
+    default: ""
+
+  # ── MS Teams ─────────────────────────────────────────────────────────────────
+  ms-teams:
+    description: "Set to 'true' to post the summary to MS Teams. Sends an Adaptive Card when ai is also true."
+    required: false
+    default: "false"
+  ms-teams-webhook-url:
+    description: "Microsoft Teams Incoming Webhook URL."
+    required: false
+    default: ""
+
+# ─── Outputs ──────────────────────────────────────────────────────────────────
+
+outputs:
+  summary:
+    description: "The generated PR summary text."
+
+# ─── Implementation ───────────────────────────────────────────────────────────
+
+runs:
+  using: "composite"
+  steps:
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: "20"
+
+    - name: Install Prly
+      shell: bash
+      run: npm install -g @prly/prly@0.1.8
+
+    - name: Write Prly config
+      shell: bash
+      run: |
+        node -e "
+        const os = require('os');
+        const path = require('path');
+        const fs = require('fs');
+
+        const modules = '${{ inputs.filter-modules }}'
+          .split(',').map(s => s.trim()).filter(Boolean);
+
+        const config = {
+          github: {
+            owner: '${{ inputs.github-owner }}',
+            repo:  '${{ inputs.github-repo }}',
+            token: '${{ inputs.github-token }}',
+            ...(('${{ inputs.github-api-base-url }}' && '${{ inputs.github-api-base-url }}' !== 'https://api.github.com')
+              ? { apiBaseUrl: '${{ inputs.github-api-base-url }}' } : {}),
+            filterModules: modules,
+          },
+          ...('${{ inputs.openai-api-key }}' ? { openai: { apiKey: '${{ inputs.openai-api-key }}' } } : {}),
+          integrations: {
+            ...('${{ inputs.email-receiver }}' || '${{ inputs.smtp-user }}' ? {
+              email: {
+                ...('${{ inputs.email-receiver }}' ? { reciever: '${{ inputs.email-receiver }}'.split(',').map(s=>s.trim()).filter(Boolean) } : {}),
+                smtp: {
+                  ...('${{ inputs.smtp-user }}' ? { user: '${{ inputs.smtp-user }}' } : {}),
+                  ...('${{ inputs.smtp-pass }}' ? { pass: '${{ inputs.smtp-pass }}' } : {}),
+                  ...('${{ inputs.smtp-host }}' ? { host: '${{ inputs.smtp-host }}' } : {}),
+                  port: parseInt('${{ inputs.smtp-port }}', 10) || 587,
+                  secure: '${{ inputs.smtp-secure }}' === 'true',
+                },
+              },
+            } : {}),
+            ...('${{ inputs.webhook-url }}' ? { webhook: { url: '${{ inputs.webhook-url }}' } } : {}),
+            ...('${{ inputs.ms-teams-webhook-url }}' ? { msTeams: { webhookUrl: '${{ inputs.ms-teams-webhook-url }}' } } : {}),
+          },
+          llmOptions: {
+            outputLanguage: '${{ inputs.output-language }}' || 'English',
+            ...('${{ inputs.custom-prompt }}' ? { prompt: '${{ inputs.custom-prompt }}' } : {}),
+          },
+        };
+
+        fs.writeFileSync(
+          path.join(os.homedir(), '.prly.config.json'),
+          JSON.stringify(config, null, 2)
+        );
+        console.log('✅ Prly config written.');
+        "
+
+    - name: Run Prly
+      shell: bash
+      id: prly
+      run: |
+        ARGS="run"
+        [[ -n "${{ inputs.since }}" ]] && ARGS="$ARGS --since ${{ inputs.since }}"
+        [[ -n "${{ inputs.until }}" ]] && ARGS="$ARGS --until ${{ inputs.until }}"
+        [[ "${{ inputs.ai }}"       == "true" ]] && ARGS="$ARGS --ai"
+        [[ "${{ inputs.email }}"    == "true" ]] && ARGS="$ARGS --email"
+        [[ "${{ inputs.webhook }}"  == "true" ]] && ARGS="$ARGS --webhook"
+        [[ "${{ inputs.ms-teams }}" == "true" ]] && ARGS="$ARGS --ms-teams"
+
+        OUTPUT=$(prly $ARGS)
+        echo "$OUTPUT"
+
+        # Expose multi-line output safely
+        EOF=$(dd if=/dev/urandom bs=15 count=1 2>/dev/null | base64)
+        echo "summary<<$EOF" >> "$GITHUB_OUTPUT"
+        echo "$OUTPUT"       >> "$GITHUB_OUTPUT"
+        echo "$EOF"          >> "$GITHUB_OUTPUT"

@@ -9,6 +9,9 @@ dist/
 # dotenv files
 .env
 
+# Prly local config (may contain secrets)
+.prly.config.json
+
 # User-specific files
 *.rsuser
 *.suo
