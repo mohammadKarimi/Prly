@@ -14,7 +14,7 @@ Prly is a command-line tool that fetches merged PRs from a GitHub repository, op
 - [Prerequisites](#prerequisites)
 - [Installation](#installation)
 - [Quick Start](#quick-start)
-- [Environment Variables](#environment-variables)
+- [Secrets & Credentials](#secrets--credentials)
 - [Configuration File](#configuration-file)
 - [Commands](#commands)
   - [run](#run)
@@ -37,23 +37,25 @@ Prly is a command-line tool that fetches merged PRs from a GitHub repository, op
 - Fetches all merged PRs from any GitHub repository within a configurable date range
 - Filters PRs to only those that touch directories **you own** (your modules)
 - Generates a structured, section-by-section AI analysis (Problem / Change / Result) via OpenAI
-- Posts the result to a Microsoft Teams channel as a native **Adaptive Card** (version 1.4) via an incoming webhook
-- Sends the summary as an HTML email via any SMTP server
+- Posts the result to a **Microsoft Teams** channel as a native **Adaptive Card** (version 1.4) via `--ms-teams`
+- Posts the summary to any **generic webhook** endpoint via `--webhook` (e.g. Slack-compatible incoming webhooks)
+- Sends the summary as an HTML email via any SMTP server via `--email`
 - Works with a personal access token **or** the GitHub CLI (`gh auth login`) — no token setup required if you already use the CLI
-- Config stored in a single JSON file in your home directory — nothing committed to the repo
+- All configuration — including secrets — stored in a single JSON file in your home directory; nothing committed to the repo
 
 ---
 
 ## Prerequisites
 
-| Requirement      | Version                                                                      |
-| ---------------- | ---------------------------------------------------------------------------- |
-| Node.js          | ≥ 18                                                                         |
-| npm              | ≥ 9                                                                          |
-| GitHub token     | Personal access token **or** [GitHub CLI](https://cli.github.com/) logged in |
-| OpenAI API key   | Required only for AI summarization (`--ai`)                                  |
-| SMTP credentials | Required only for email (`--email`)                                          |
-| Teams webhook    | Required only for webhook delivery (`--webhook`)                             |
+| Requirement       | Version                                                                      |
+| ----------------- | ---------------------------------------------------------------------------- |
+| Node.js           | ≥ 18                                                                         |
+| npm               | ≥ 9                                                                          |
+| GitHub token      | Personal access token **or** [GitHub CLI](https://cli.github.com/) logged in |
+| OpenAI API key    | Required only for AI summarization (`--ai`)                                  |
+| SMTP credentials  | Required only for email (`--email`)                                          |
+| Teams webhook URL | Required only for MS Teams delivery (`--ms-teams`)                           |
+| Webhook URL       | Required only for generic webhook delivery (`--webhook`)                     |
 
 ---
 
@@ -87,79 +89,85 @@ npm link
 ## Quick Start
 
 ```bash
-# 1. Create your config interactively
+# 1. Create your config and enter all credentials interactively
+#    (GitHub token, OpenAI key, SMTP settings, Teams/webhook URLs)
 prly config init
 
-# 2. Set your secrets (add these to your shell profile for persistence)
-export GITHUB_TOKEN=ghp_...
-export OPENAI_API_KEY=sk-...
-export EMAIL_USER=you@example.com
-export EMAIL_PASS=your-smtp-password
-
-# 3. Run a summary for yesterday's merged PRs
+# 2. Run a summary for yesterday's merged PRs
 prly run
+
+# 3. Add AI summarization and post to MS Teams
+prly run --ai --ms-teams
 ```
+
+> All secrets (GitHub token, OpenAI key, SMTP password, webhook URLs) are collected by `prly config init` and stored in `~/.prly.config.json`. No environment variables are required.
 
 ---
 
-## Environment Variables
+## Secrets & Credentials
 
-All secrets are provided via environment variables. Prly loads a `.env` file from the **current working directory** automatically (via `dotenv`), or you can export them in your shell profile.
+Prly stores all secrets inside `~/.prly.config.json`. Run `prly config init` to enter them interactively — the wizard walks you through every credential and saves them to the config file.
 
-| Variable              | Required               | Description                                                                                                 |
-| --------------------- | ---------------------- | ----------------------------------------------------------------------------------------------------------- |
-| `GITHUB_TOKEN`        | Optional†              | GitHub personal access token with `repo` read scope. Falls back to `gh auth token` if not set.              |
-| `OPENAI_API_KEY`      | Yes (`--ai`)           | OpenAI API key for generating summaries.                                                                    |
-| `EMAIL_USER`          | Yes (with `--email`)   | SMTP username and the default sender/recipient address.                                                     |
-| `EMAIL_PASS`          | Yes (with `--email`)   | SMTP password or app password.                                                                              |
-| `EMAIL_HOST`          | No                     | SMTP host (e.g. `smtp.gmail.com`). Required when sending email.                                             |
-| `EMAIL_PORT`          | No                     | SMTP port. Defaults to `587`.                                                                               |
-| `EMAIL_SECURE`        | No                     | Set to `true` to use TLS (port 465). Defaults to `false`.                                                   |
-| `WEBHOOK_URL`         | Yes (with `--webhook`) | Incoming webhook URL for Microsoft Teams. Create one via **Teams channel → Connectors → Incoming Webhook**. |
-| `GITHUB_API_BASE_URL` | No                     | Override the GitHub API base URL (e.g. for GitHub Enterprise). Defaults to `https://api.github.com`.        |
+| Credential           | Config key                        | When needed  |
+| -------------------- | --------------------------------- | ------------ |
+| GitHub token         | `github.token`                    | Always†      |
+| OpenAI API key       | `openai.apiKey`                   | `--ai`       |
+| SMTP user / sender   | `integrations.email.smtp.user`    | `--email`    |
+| SMTP password        | `integrations.email.smtp.pass`    | `--email`    |
+| SMTP host            | `integrations.email.smtp.host`    | `--email`    |
+| MS Teams webhook URL | `integrations.msTeams.webhookUrl` | `--ms-teams` |
+| Generic webhook URL  | `integrations.webhook.url`        | `--webhook`  |
 
-† If `GITHUB_TOKEN` is not set, Prly will call `gh auth token` automatically. Run `gh auth login` once and you never need to manage a token manually.
-
-**Example `.env` file:**
-
-```dotenv
-GITHUB_TOKEN=ghp_xxxxxxxxxxxxxxxxxxxx
-OPENAI_API_KEY=sk-proj-xxxxxxxxxxxxxxxxxxxx
-EMAIL_USER=you@example.com
-EMAIL_PASS=your-app-password
-EMAIL_HOST=smtp.gmail.com
-EMAIL_PORT=587
-WEBHOOK_URL=https://your-org.webhook.office.com/webhookb2/...
-```
+† If `github.token` is not set in the config, Prly calls `gh auth token` automatically. Run `gh auth login` once and you never need to manage a token manually.
 
 ---
 
 ## Configuration File
 
-Prly stores non-secret configuration in `~/.prly.config.json`. Create or update it interactively with `prly config init`.
+Prly stores all configuration — including secrets — in `~/.prly.config.json`. Create or update it interactively with `prly config init`.
 
 ```jsonc
 {
   "github": {
     "owner": "my-org", // GitHub organisation or username
     "repo": "my-repo", // Repository name
+    "token": "ghp_...", // Optional: falls back to gh CLI
+    "apiBaseUrl": "https://api.github.com", // Optional: override for GitHub Enterprise
+    "filterModules": [
+      // Directory prefixes you own (optional filter)
+      "src/features/auth",
+      "libs/payments",
+    ],
   },
-  "myModules": [
-    // Directory prefixes you own (optional)
-    "src/features/auth",
-    "libs/payments",
-  ],
-  "email": {
-    "to": "team@example.com", // Recipient address (falls back to EMAIL_USER)
+  "openai": {
+    "apiKey": "sk-...", // Required for --ai
+  },
+  "integrations": {
+    "email": {
+      "reciever": "team@example.com", // or ["a@b.com", "c@d.com"]
+      "smtp": {
+        "user": "you@example.com",
+        "pass": "your-app-password",
+        "host": "smtp.gmail.com",
+        "port": 587,
+        "secure": false,
+      },
+    },
+    "msTeams": {
+      "webhookUrl": "https://your-org.webhook.office.com/webhookb2/...",
+    },
+    "webhook": {
+      "url": "https://your-endpoint.example.com/hook",
+    },
   },
   "llmOptions": {
-    "outputLanguage": "English", // Language for the AI output, e.g. "Persian", "Spanish"
-    "prompt": "...", // Custom system prompt sent to OpenAI
+    "outputLanguage": "English", // Language for the AI output
+    "prompt": "...", // Optional: custom system prompt for OpenAI
   },
 }
 ```
 
-`myModules` is the most important setting. When set, only PRs that touch at least one file inside those directories are included in the summary and email.
+`github.filterModules` is the most important setting. When set, only PRs that touch at least one file inside those directories are included in the summary and deliveries.
 
 ### `llmOptions`
 
@@ -180,14 +188,15 @@ Fetch, filter, and summarize your PRs. Outputs and delivery channels are **opt-i
 prly run [options]
 ```
 
-| Option           | Description                                                               | Default   |
-| ---------------- | ------------------------------------------------------------------------- | --------- |
-| `--since <date>` | Start of the date range (`YYYY-MM-DD`)                                    | Yesterday |
-| `--until <date>` | End of the date range (`YYYY-MM-DD`)                                      | Today     |
-| `--ai`           | Generate an AI summary via OpenAI                                         | Off       |
-| `--email`        | Send the summary by email                                                 | Off       |
-| `--webhook`      | Build a Teams Adaptive Card with AI and post it to the configured webhook | Off       |
-| `--verbose`      | Print each PR's changed files while filtering by modules                  | Off       |
+| Option           | Description                                                                                            | Default   |
+| ---------------- | ------------------------------------------------------------------------------------------------------ | --------- |
+| `--since <date>` | Start of the date range (`YYYY-MM-DD`)                                                                 | Yesterday |
+| `--until <date>` | End of the date range (`YYYY-MM-DD`)                                                                   | Today     |
+| `--ai`           | Generate an AI summary via OpenAI                                                                      | Off       |
+| `--email`        | Send the summary by email                                                                              | Off       |
+| `--ms-teams`     | Post to MS Teams — sends a rich Adaptive Card when combined with `--ai`, otherwise a plain MessageCard | Off       |
+| `--webhook`      | POST the summary as JSON to the configured generic webhook URL                                         | Off       |
+| `--verbose`      | Print each PR's changed files while filtering by modules                                               | Off       |
 
 ---
 
@@ -290,20 +299,23 @@ prly run
 # Summarize with AI only — inspect the output before wiring up delivery
 prly run --ai
 
-# Post an Adaptive Card to Teams (AI analyses PRs, card is built from that analysis)
-prly run --ai --webhook
+# Post a rich Adaptive Card to MS Teams (AI analyses PRs, card is built from that analysis)
+prly run --ai --ms-teams
+
+# Post to MS Teams without AI (sends a plain MessageCard)
+prly run --ms-teams
+
+# POST summary JSON to a generic webhook (e.g. a Slack-compatible incoming webhook)
+prly run --webhook
 
 # Summarize a specific date range and email the result
 prly run --since 2026-03-01 --until 2026-03-07 --ai --email
 
 # Summarize this week and post to Teams only (no email)
-prly run --since 2026-03-16 --ai --webhook
+prly run --since 2026-03-16 --ai --ms-teams
 
-# Full delivery: AI summary + email + Teams Adaptive Card
-prly run --ai --email --webhook
-
-# Webhook-only (card generated directly from raw PR data, no separate text summary)
-prly run --webhook
+# Full delivery: AI summary + email + MS Teams Adaptive Card + generic webhook
+prly run --ai --email --ms-teams --webhook
 
 # See which files each PR touched while filtering
 prly run --verbose
