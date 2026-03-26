@@ -124,7 +124,7 @@ runs:
 
     - name: Install Prly
       shell: bash
-      run: npm install -g @prly/prly@0.1.8
+      run: npm install -g @prly/prly@0.1.9
 
     - name: Write Prly config
       shell: bash
