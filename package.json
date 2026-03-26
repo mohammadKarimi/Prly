@@ -1,6 +1,6 @@
 {
   "name": "@prly/prly",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "description": "Summarize your daily merged PRs with AI — for any GitHub repo",
   "type": "commonjs",
   "bin": {
