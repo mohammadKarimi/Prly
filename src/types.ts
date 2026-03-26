@@ -3,14 +3,31 @@ export interface Config {
   github: {
     owner: string;
     repo: string;
+    token?: string;
+    apiBaseUrl?: string;
+    filterModules: string[];
   };
-  /** Directory paths you own, e.g. `["src/features/auth", "libs/ui"]`. */
-  myModules: string[];
-  email?: {
-    /** Recipient address; falls back to the `EMAIL_USER` env var when omitted. */
-    to?: string;
+  openai?: {
+    apiKey?: string;
   };
-  /** OpenAI / LLM options. */
+  integrations?: {
+    email?: {
+      smtp?: {
+        user?: string;
+        pass?: string;
+        host?: string;
+        port?: number;
+        secure?: boolean;
+      };
+      reciever?: string | string[]; // Email address or addresses to send the summary to. Falls back to `EMAIL_TO` env var.
+    };
+    webhook?: {
+      url?: string;
+    };
+    msTeams?: {
+      webhookUrl?: string;
+    };
+  };
   llmOptions?: {
     /** System prompt sent to OpenAI. Edit this to customise the summary style. */
     prompt?: string;
@@ -55,6 +72,8 @@ export interface RunOptions {
   email: boolean;
   /** When `true`, the summary is posted to the configured webhook. */
   webhook: boolean;
+  /** When `true`, the summary is posted to the configured MS Teams channel. */
+  msTeams: boolean;
   /** Print each PR's changed files while filtering by modules. */
   verbose?: boolean;
 }

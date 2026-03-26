@@ -1,4 +1,5 @@
 import nodemailer from "nodemailer";
+import { loadConfig } from "../config";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -23,33 +24,32 @@ function buildHtml(summary: string): string {
 // ─── Public API ───────────────────────────────────────────────────────────────
 
 /**
- * Sends `summary` as an HTML email via the configured SMTP transporter.
+ * Sends `summary` as an HTML email using the SMTP settings in the config file.
  *
- * Required env vars: `EMAIL_USER`, `EMAIL_PASS`, `EMAIL_HOST`.
- * Optional env vars: `EMAIL_PORT` (default `587`), `EMAIL_SECURE` (default `false`).
- *
- * @param summary            Plain-text summary to send.
- * @param recipientOverride  Override the recipient; defaults to `EMAIL_USER`.
+ * The recipient(s) are taken from `config.email.reciever`; when omitted the
+ * SMTP sender address (`config.email.smtp.user`) is used as a fallback.
  */
-export async function sendEmail(
-  summary: string,
-  recipientOverride?: string,
-): Promise<void> {
-  const user = process.env.EMAIL_USER;
-  const pass = process.env.EMAIL_PASS;
+export async function sendEmail(summary: string): Promise<void> {
+  const config = loadConfig();
+  const smtp = config.integrations?.email?.smtp;
+  const user = smtp?.user;
+  const pass = smtp?.pass;
 
   if (!user || !pass) {
     throw new Error(
-      "EMAIL_USER and EMAIL_PASS environment variables must be set.",
+      'Email SMTP credentials are not configured. Set "integrations.email.smtp.user" and "integrations.email.smtp.pass" in your config.',
     );
   }
 
-  const to = recipientOverride ?? user;
-  const port = parseInt(process.env.EMAIL_PORT ?? "587", 10);
-  const secure = process.env.EMAIL_SECURE === "true";
+  // Resolve recipient(s)
+  const reciever = config.integrations?.email?.reciever;
+  const to = Array.isArray(reciever) ? reciever.join(", ") : (reciever ?? user);
+
+  const port = smtp?.port ?? 587;
+  const secure = smtp?.secure ?? false;
 
   const transporter = nodemailer.createTransport({
-    host: process.env.EMAIL_HOST,
+    host: smtp?.host,
     port,
     secure,
     auth: { user, pass },

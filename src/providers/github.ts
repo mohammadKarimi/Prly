@@ -1,23 +1,22 @@
 import fetch from "node-fetch";
 import { execSync } from "child_process";
-import { PullRequest, PullRequestFile } from "../types";
-import { configPath } from "../config";
+import { PullRequest, PullRequestFile, Config } from "../types";
+import { loadConfig, configPath } from "../config";
 
 // ─── API helpers ──────────────────────────────────────────────────────────────
 
-function apiBase(): string {
-  return (process.env.GITHUB_API_BASE_URL ?? "https://api.github.com").replace(
+function apiBase(config: Config): string {
+  return (config.github.apiBaseUrl ?? "https://api.github.com").replace(
     /\/$/,
     "",
   );
 }
 
-type TokenSource = "GITHUB_TOKEN env var" | "GitHub CLI (gh auth token)";
+type TokenSource = "config file" | "GitHub CLI (gh auth token)";
 
-function resolveToken(): { token: string; source: TokenSource } {
-  // Explicit env var always wins
-  if (process.env.GITHUB_TOKEN) {
-    return { token: process.env.GITHUB_TOKEN, source: "GITHUB_TOKEN env var" };
+function resolveToken(config: Config): { token: string; source: TokenSource } {
+  if (config.github.token) {
+    return { token: config.github.token, source: "config file" };
   }
 
   // Fall back to GitHub CLI token (OAuth app — bypasses org PAT restrictions)
@@ -31,13 +30,13 @@ function resolveToken(): { token: string; source: TokenSource } {
   }
 
   throw new Error(
-    "No GitHub token found. Set GITHUB_TOKEN in .env or run: gh auth login",
+    'No GitHub token found. Set "github.token" in your config or run: gh auth login',
   );
 }
 
-function githubHeaders(): Record<string, string> {
+function githubHeaders(config: Config): Record<string, string> {
   return {
-    Authorization: `Bearer ${resolveToken().token}`,
+    Authorization: `Bearer ${resolveToken(config).token}`,
     Accept: "application/vnd.github+json",
   };
 }
@@ -55,12 +54,13 @@ export async function fetchMergedPRs(
   since: Date,
   until: Date,
 ): Promise<PullRequest[]> {
+  const config = loadConfig();
   const allPRs: PullRequest[] = [];
   let page = 1;
 
   while (true) {
-    const url = `${apiBase()}/repos/${owner}/${repo}/pulls?state=closed&per_page=100&page=${page}`;
-    const res = await fetch(url, { headers: githubHeaders() });
+    const url = `${apiBase(config)}/repos/${owner}/${repo}/pulls?state=closed&per_page=100&page=${page}`;
+    const res = await fetch(url, { headers: githubHeaders(config) });
 
     if (!res.ok) {
       throw new Error(`GitHub API error ${res.status}: ${await res.text()}`);
@@ -93,8 +93,9 @@ export async function fetchPRFiles(
   repo: string,
   prNumber: number,
 ): Promise<string[]> {
-  const url = `${apiBase()}/repos/${owner}/${repo}/pulls/${prNumber}/files?per_page=100`;
-  const res = await fetch(url, { headers: githubHeaders() });
+  const config = loadConfig();
+  const url = `${apiBase(config)}/repos/${owner}/${repo}/pulls/${prNumber}/files?per_page=100`;
+  const res = await fetch(url, { headers: githubHeaders(config) });
 
   if (!res.ok) {
     throw new Error(
@@ -118,8 +119,9 @@ export async function testConnection(
   owner: string,
   repo: string,
 ): Promise<void> {
-  const base = apiBase();
-  const { token, source: tokenSource } = resolveToken();
+  const config = loadConfig();
+  const base = apiBase(config);
+  const { token, source: tokenSource } = resolveToken(config);
   const headers: Record<string, string> = {
     Authorization: `Bearer ${token}`,
     Accept: "application/vnd.github+json",

@@ -76,11 +76,11 @@ export function isMyPR(changedFiles: string[], myModules: string[]): boolean {
 export function addModule(modulePath: string): Config {
   const config = loadConfig();
   const normalized = normalizeModulePath(modulePath);
-  if (config.myModules.includes(normalized)) {
+  if (config.github.filterModules.includes(normalized)) {
     console.log(`Module "${normalized}" is already in the list.`);
     return config;
   }
-  config.myModules.push(normalized);
+  config.github.filterModules.push(normalized);
   saveConfig(config);
   return config;
 }
@@ -92,9 +92,11 @@ export function addModule(modulePath: string): Config {
 export function removeModule(modulePath: string): Config {
   const config = loadConfig();
   const normalized = normalizeModulePath(modulePath);
-  const before = config.myModules.length;
-  config.myModules = config.myModules.filter((m) => m !== normalized);
-  if (config.myModules.length === before) {
+  const before = config.github.filterModules.length;
+  config.github.filterModules = config.github.filterModules.filter(
+    (m) => m !== normalized,
+  );
+  if (config.github.filterModules.length === before) {
     console.log(`Module "${normalized}" was not found in the list.`);
     return config;
   }
@@ -134,23 +136,32 @@ export async function initConfig(): Promise<Config> {
     return answer.trim() || fallback;
   };
 
+  /** Show "***" when a sensitive value is already set so the user knows it exists. */
+  const sensitiveHint = (value: string | undefined): string =>
+    value ? "***" : "";
+
   console.log(
     `\n⚙️  Setting up prly — config will be saved to: ${configPath()}\n`,
   );
 
+  // ── GitHub ────────────────────────────────────────────────────────────────
+  console.log(
+    "── GitHub ───────────────────────────────────────────────────\n",
+  );
   const owner = await ask("GitHub org / owner", existing?.github.owner ?? "");
   const repo = await ask("GitHub repo name", existing?.github.repo ?? "");
-  const emailTo = await ask(
-    "Email recipient (leave blank to skip)",
-    existing?.email?.to ?? "",
+  const githubToken = await ask(
+    "GitHub Personal Access Token (leave blank to use gh CLI fallback)",
+    sensitiveHint(existing?.github.token),
   );
-
-  console.log(
-    "\n📦 Modules filter (optional): enter directory prefixes to filter PRs.",
+  const apiBaseUrl = await ask(
+    "GitHub API base URL",
+    existing?.github.apiBaseUrl ?? "https://api.github.com",
   );
+  console.log("   Enter directory prefixes to filter PRs to your areas.");
   console.log('   e.g. "src/features/auth"  — leave blank to finish.\n');
 
-  const modules: string[] = [...(existing?.myModules ?? [])];
+  const modules: string[] = [...(existing?.github.filterModules ?? [])];
   while (true) {
     const mod = await ask("Add module path (or press Enter to finish)");
     if (!mod) break;
@@ -159,15 +170,144 @@ export async function initConfig(): Promise<Config> {
     console.log(`   ✅ Modules so far: ${modules.join(", ")}`);
   }
 
+  // ── OpenAI ────────────────────────────────────────────────────────────────
+  console.log(
+    "\n── OpenAI ───────────────────────────────────────────────────\n",
+  );
+  const openAiKey = await ask(
+    "OpenAI API key",
+    sensitiveHint(existing?.openai?.apiKey),
+  );
+
+  // ── Email ─────────────────────────────────────────────────────────────────
+  console.log(
+    "\n── Email ────────────────────────────────────────────────────\n",
+  );
+  const emailReceiver = await ask(
+    "Email recipient address(es), comma-separated (leave blank to skip email)",
+    Array.isArray(existing?.integrations?.email?.reciever)
+      ? existing.integrations.email.reciever.join(", ")
+      : (existing?.integrations?.email?.reciever ?? ""),
+  );
+  const emailUser = await ask(
+    "SMTP user / sender address",
+    existing?.integrations?.email?.smtp?.user ?? "",
+  );
+  const emailPass = await ask(
+    "SMTP password",
+    sensitiveHint(existing?.integrations?.email?.smtp?.pass),
+  );
+  const emailHost = await ask(
+    "SMTP host",
+    existing?.integrations?.email?.smtp?.host ?? "",
+  );
+  const emailPort = await ask(
+    "SMTP port",
+    existing?.integrations?.email?.smtp?.port?.toString() ?? "587",
+  );
+  const emailSecure = await ask(
+    "SMTP secure / TLS (true/false)",
+    existing?.integrations?.email?.smtp?.secure?.toString() ?? "false",
+  );
+
+  // ── MS Teams ──────────────────────────────────────────────────────────────
+  console.log(
+    "\n── MS Teams ─────────────────────────────────────────────────\n",
+  );
+  const msTeamsWebhookUrl = await ask(
+    "MS Teams Incoming Webhook URL (leave blank to skip)",
+    existing?.integrations?.msTeams?.webhookUrl ?? "",
+  );
+
+  // ── Webhook ───────────────────────────────────────────────────────────────
+  console.log(
+    "\n── Webhook ──────────────────────────────────────────────────\n",
+  );
+  const webhookUrl = await ask(
+    "Webhook URL (leave blank to skip)",
+    existing?.integrations?.webhook?.url ?? "",
+  );
+
+  // ── LLM options ───────────────────────────────────────────────────────────
+  console.log(
+    "\n── LLM / AI options ─────────────────────────────────────────\n",
+  );
+  const outputLanguage = await ask(
+    "Summary output language",
+    existing?.llmOptions?.outputLanguage ?? "English",
+  );
+  console.log("   Custom AI prompt (leave blank to keep the default):");
+  console.log(
+    `   Current: ${(existing?.llmOptions?.prompt ?? DEFAULT_OPENAI_PROMPT).slice(0, 80)}…`,
+  );
+  const customPrompt = await ask("Custom prompt (or press Enter to keep)");
+
   rl.close();
 
+  // ── Build & save config ───────────────────────────────────────────────────
+
+  // Resolve sensitive fields: "***" means "keep the existing value"
+  const resolvedToken =
+    githubToken === "***" ? existing?.github.token : githubToken || undefined;
+  const resolvedOpenAiKey =
+    openAiKey === "***" ? existing?.openai?.apiKey : openAiKey || undefined;
+  const resolvedEmailPass =
+    emailPass === "***"
+      ? existing?.integrations?.email?.smtp?.pass
+      : emailPass || undefined;
+
+  // Parse comma-separated receiver addresses
+  const parsedReceiver = emailReceiver
+    ? emailReceiver
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean)
+    : undefined;
+  const reciever =
+    parsedReceiver && parsedReceiver.length === 1
+      ? parsedReceiver[0]
+      : parsedReceiver?.length
+        ? parsedReceiver
+        : undefined;
+
+  const hasEmailConfig =
+    reciever || emailUser || resolvedEmailPass || emailHost;
+
   const config: Config = {
-    github: { owner, repo },
-    myModules: modules,
-    ...(emailTo ? { email: { to: emailTo } } : {}),
+    github: {
+      owner,
+      repo,
+      ...(resolvedToken ? { token: resolvedToken } : {}),
+      ...(apiBaseUrl && apiBaseUrl !== "https://api.github.com"
+        ? { apiBaseUrl }
+        : {}),
+      filterModules: modules,
+    },
+    ...(resolvedOpenAiKey ? { openai: { apiKey: resolvedOpenAiKey } } : {}),
+    integrations: {
+      ...(hasEmailConfig
+        ? {
+            email: {
+              ...(reciever ? { reciever } : {}),
+              smtp: {
+                ...(emailUser ? { user: emailUser } : {}),
+                ...(resolvedEmailPass ? { pass: resolvedEmailPass } : {}),
+                ...(emailHost ? { host: emailHost } : {}),
+                ...(emailPort ? { port: parseInt(emailPort, 10) } : {}),
+                ...(emailSecure ? { secure: emailSecure === "true" } : {}),
+              },
+            },
+          }
+        : {}),
+      ...(webhookUrl ? { webhook: { url: webhookUrl } } : {}),
+      ...(msTeamsWebhookUrl
+        ? { msTeams: { webhookUrl: msTeamsWebhookUrl } }
+        : {}),
+    },
     llmOptions: {
-      prompt: existing?.llmOptions?.prompt ?? DEFAULT_OPENAI_PROMPT,
-      outputLanguage: existing?.llmOptions?.outputLanguage ?? "English",
+      prompt:
+        customPrompt || existing?.llmOptions?.prompt || DEFAULT_OPENAI_PROMPT,
+      outputLanguage: outputLanguage || "English",
     },
   };
 

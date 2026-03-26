@@ -26,6 +26,7 @@ Prly is a command-line tool that fetches merged PRs from a GitHub repository, op
   - [config remove-module](#config-remove-module)
   - [config test](#config-test)
 - [Examples](#examples)
+- [GitHub Action](#github-action)
 - [Contributing](#contributing)
 - [License](#license)
 
@@ -319,6 +320,92 @@ prly config add-module src/billing
 # Remove an old module path
 prly config remove-module libs/legacy
 ```
+
+---
+
+## GitHub Action
+
+Prly is available as a GitHub Action on the [Marketplace](https://github.com/marketplace/actions/prly-pr-summary). Drop it into any workflow to get automatic daily PR summaries posted to MS Teams, email, or a webhook — no extra tooling required.
+
+### Minimal example
+
+```yaml
+# .github/workflows/daily-pr-summary.yml
+name: Daily PR Summary
+
+on:
+  schedule:
+    - cron: "0 9 * * 1-5" # weekdays at 09:00 UTC
+  workflow_dispatch:
+
+jobs:
+  summary:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: mohammadKarimi/Prly@v1
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          github-owner: my-org
+          github-repo: my-repo
+```
+
+### Full example — AI summary posted to MS Teams as an Adaptive Card
+
+```yaml
+- uses: mohammadKarimi/Prly@v1
+  with:
+    github-token: ${{ secrets.GITHUB_TOKEN }}
+    github-owner: my-org
+    github-repo: my-repo
+    since: "2026-03-01"
+    until: "2026-03-07"
+    filter-modules: "src/features/auth,src/payments"
+    ai: "true"
+    openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+    output-language: "English"
+    ms-teams: "true"
+    ms-teams-webhook-url: ${{ secrets.TEAMS_WEBHOOK_URL }}
+    email: "true"
+    email-receiver: "team@example.com"
+    smtp-user: ${{ secrets.SMTP_USER }}
+    smtp-pass: ${{ secrets.SMTP_PASS }}
+    smtp-host: "smtp.gmail.com"
+    smtp-port: "587"
+    smtp-secure: "false"
+```
+
+### Action inputs
+
+| Input                  | Required | Default                  | Description                                      |
+| ---------------------- | -------- | ------------------------ | ------------------------------------------------ |
+| `github-token`         | ✅       | —                        | GitHub token with `repo` read scope              |
+| `github-owner`         | ✅       | —                        | GitHub org or user                               |
+| `github-repo`          | ✅       | —                        | Repository name                                  |
+| `github-api-base-url`  |          | `https://api.github.com` | Override for GitHub Enterprise                   |
+| `since`                |          | yesterday                | Start date `YYYY-MM-DD`                          |
+| `until`                |          | today                    | End date `YYYY-MM-DD`                            |
+| `filter-modules`       |          | —                        | Comma-separated directory prefixes               |
+| `ai`                   |          | `false`                  | Generate AI summary via OpenAI                   |
+| `openai-api-key`       |          | —                        | Required when `ai: true`                         |
+| `output-language`      |          | `English`                | Language for the AI output                       |
+| `custom-prompt`        |          | —                        | Custom system prompt for OpenAI                  |
+| `email`                |          | `false`                  | Send summary by email                            |
+| `email-receiver`       |          | —                        | Recipient address(es), comma-separated           |
+| `smtp-user`            |          | —                        | SMTP username / sender                           |
+| `smtp-pass`            |          | —                        | SMTP password                                    |
+| `smtp-host`            |          | —                        | SMTP host                                        |
+| `smtp-port`            |          | `587`                    | SMTP port                                        |
+| `smtp-secure`          |          | `false`                  | Use TLS                                          |
+| `webhook`              |          | `false`                  | Post to a generic webhook URL                    |
+| `webhook-url`          |          | —                        | Webhook URL                                      |
+| `ms-teams`             |          | `false`                  | Post to MS Teams (Adaptive Card when `ai: true`) |
+| `ms-teams-webhook-url` |          | —                        | MS Teams Incoming Webhook URL                    |
+
+### Action outputs
+
+| Output    | Description                                                |
+| --------- | ---------------------------------------------------------- |
+| `summary` | The generated PR summary text (usable in downstream steps) |
 
 ---
 
