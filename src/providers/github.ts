@@ -107,6 +107,32 @@ export async function fetchPRFiles(
   return files.map((f) => f.filename);
 }
 
+/**
+ * Returns per-file unified diffs for pull request `prNumber`.
+ * Each entry has `filename` and `patch` (the unified diff text).
+ * Files without a text diff (e.g. binary files) are omitted.
+ */
+export async function fetchPRDiffs(
+  owner: string,
+  repo: string,
+  prNumber: number,
+): Promise<Array<{ filename: string; patch: string }>> {
+  const config = loadConfig();
+  const url = `${apiBase(config)}/repos/${owner}/${repo}/pulls/${prNumber}/files?per_page=100`;
+  const res = await fetch(url, { headers: githubHeaders(config) });
+
+  if (!res.ok) {
+    throw new Error(
+      `GitHub API error ${res.status} for PR #${prNumber}: ${await res.text()}`,
+    );
+  }
+
+  const files = (await res.json()) as PullRequestFile[];
+  return files
+    .filter((f) => f.patch)
+    .map((f) => ({ filename: f.filename, patch: f.patch! }));
+}
+
 // ─── Diagnostics ──────────────────────────────────────────────────────────────
 
 /**

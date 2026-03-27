@@ -1,7 +1,14 @@
 import ora from "ora";
 import { loadConfig, isMyPR } from "../config";
-import { fetchMergedPRs, fetchPRFiles } from "../providers/github";
-import { summarizePRs, summarizePRsAsAdaptiveCard } from "../providers/openai";
+import {
+  fetchMergedPRs,
+  fetchPRFiles,
+  fetchPRDiffs,
+} from "../providers/github";
+import {
+  summarizePRs,
+  buildAdaptiveCardFromSummary,
+} from "../providers/openai";
 import { sendEmail } from "../providers/email";
 import { sendToWebhook } from "../providers/webhook";
 import { sendToMsTeams, sendAdaptiveCardToMsTeams } from "../providers/msTeams";
@@ -112,6 +119,19 @@ export async function runSummary(options: RunOptions): Promise<void> {
     filesSpinner.succeed("Changed files fetched.");
   }
 
+  // Fetch per-file diffs when --diff is requested
+  if (options.ai && options.diff) {
+    const diffSpinner = ora("Fetching PR diffs...").start();
+    for (const pr of myPRs) {
+      pr.diffs = await fetchPRDiffs(
+        config.github.owner,
+        config.github.repo,
+        pr.number,
+      );
+    }
+    diffSpinner.succeed("PR diffs fetched.");
+  }
+
   let summary = myPRs
     .map((pr) => `#${pr.number} ${pr.title} (@${pr.user.login})`)
     .join("\n");
@@ -137,8 +157,8 @@ export async function runSummary(options: RunOptions): Promise<void> {
   if (options.msTeams) {
     const teamsSpinner = ora("Sending MS Teams notification...").start();
     if (options.ai) {
-      // When AI is enabled, generate a rich Adaptive Card directly from the PR data
-      const card = await summarizePRsAsAdaptiveCard(myPRs);
+      // Wrap the already-generated summary into an Adaptive Card (no second AI call)
+      const card = buildAdaptiveCardFromSummary(summary, myPRs);
       await sendAdaptiveCardToMsTeams(card);
     } else {
       await sendToMsTeams(summary);

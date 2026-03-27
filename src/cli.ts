@@ -27,6 +27,10 @@ function registerRunCommand(program: Command): void {
       "--verbose",
       "Show every PR's changed files during module filtering",
     )
+    .option(
+      "--diff",
+      "Include per-file code diffs in the AI prompt (requires --ai)",
+    )
     .action(async (opts) => {
       await runSummary({
         since: opts.since,
@@ -36,6 +40,7 @@ function registerRunCommand(program: Command): void {
         webhook: !!opts.webhook,
         msTeams: !!opts.msTeams,
         verbose: !!opts.verbose,
+        diff: !!opts.diff,
       });
     });
 }

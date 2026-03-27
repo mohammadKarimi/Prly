@@ -52,6 +52,11 @@ export interface PullRequest {
    * Not part of the raw GitHub API response.
    */
   changedFiles?: string[];
+  /**
+   * Per-file unified diffs, populated after calling `fetchPRDiffs`.
+   * Not part of the raw GitHub API response.
+   */
+  diffs?: Array<{ filename: string; patch: string }>;
 }
 
 /** A single file entry inside a pull request (GitHub REST API). */
@@ -60,6 +65,7 @@ export interface PullRequestFile {
   status: string;
   additions: number;
   deletions: number;
+  patch?: string;
 }
 
 /** Options accepted by `runSummary`. */
@@ -76,6 +82,8 @@ export interface RunOptions {
   msTeams: boolean;
   /** Print each PR's changed files while filtering by modules. */
   verbose?: boolean;
+  /** When `true`, fetch per-file diffs and include them in the AI prompt. */
+  diff?: boolean;
 }
 
 /** An inclusive, fully-resolved date window. */
